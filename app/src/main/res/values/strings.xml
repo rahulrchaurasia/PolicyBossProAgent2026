@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">PolicyBossPro2</string>
+    <string name="skin_walkthrogh">Skip</string>
+    <string name="term">Terms &amp; Conditions</string>
+    <string name="privacy">Privacy Policy</string>
+    <string name="sync_setting_text"><![CDATA[please go to <b><u>settings.</u></b>]]></string>
+</resources>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Earnings Chart</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            touch-action: pan-y;
+        }
+        #chart-wrapper {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background-color: #FFFFFF;
+            overflow: hidden;
+        }
+        svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .grid-line {
+            stroke: #EEF2F6;
+            stroke-width: 1;
+            stroke-dasharray: 4 3;
+        }
+        .axis-label {
+            fill: #94A3B8;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .chart-line {
+            fill: none;
+            stroke: #007AFF;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .chart-area {
+            fill: url(#areaGradient);
+        }
+        .point-outer {
+            fill: #007AFF;
+            stroke: #FFFFFF;
+            stroke-width: 2;
+        }
+        .badge-bg {
+            fill: #1E293B;
+            rx: 6px;
+            ry: 6px;
+        }
+        .badge-text {
+            fill: #FFFFFF;
+            font-size: 11px;
+            font-weight: 600;
+            text-anchor: middle;
+            dominant-baseline: central;
+        }
+        .badge-pointer {
+            fill: #1E293B;
+        }
+        .empty-state {
+            fill: #94A3B8;
+            font-size: 13px;
+            text-anchor: middle;
+            dominant-baseline: central;
+        }
+    </style>
+</head>
+<body>
+    <div id="chart-wrapper">
+        <svg id="chart-svg" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#007AFF" stop-opacity="0.30"/>
+                    <stop offset="60%" stop-color="#007AFF" stop-opacity="0.08"/>
+                    <stop offset="100%" stop-color="#007AFF" stop-opacity="0.0"/>
+                </linearGradient>
+            </defs>
+            <g id="grid-group"></g>
+            <g id="area-group"></g>
+            <g id="line-group"></g>
+            <g id="labels-group"></g>
+            <g id="points-group"></g>
+            <g id="tooltip-group"></g>
+        </svg>
+    </div>
+
+    <script>
+        const DEFAULT_DATA = [
+            { month: "Jan", earnings: 15000 },
+            { month: "Feb", earnings: 20000 },
+            { month: "Mar", earnings: 30000 },
+            { month: "Apr", earnings: 18000 },
+            { month: "May", earnings: 25000 },
+            { month: "Jun", earnings: 10000 },
+            { month: "Jul", earnings: 21500 }
+        ];
+
+        let currentData = DEFAULT_DATA;
+        let selectedIndex = 2; // Default highlight on peak (March: 30,000)
+        let currencySymbol = "₹";
+
+        function clearGroup(g) {
+            if (!g) return;
+            while (g.firstChild) {
+                g.removeChild(g.firstChild);
+            }
+        }
+
+        // Parse optional query params safely
+        (function parseQueryParams() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const cur = params.get("currency");
+                if (cur === "USD") currencySymbol = "$";
+                else if (cur === "EUR") currencySymbol = "€";
+                else if (cur === "GBP") currencySymbol = "£";
+                else if (cur) currencySymbol = "₹";
+            } catch (e) {
+                console.warn("[EarningsChart] Could not parse query params", e);
+            }
+        })();
+
+        function formatCurrency(val) {
+            if (val >= 100000) {
+                const num = (val / 100000).toFixed(1).replace(/\.0$/, '');
+                return currencySymbol + num + 'L';
+            }
+            if (val >= 1000) {
+                const num = (val / 1000).toFixed(0);
+                return currencySymbol + num + 'k';
+            }
+            return currencySymbol + val;
+        }
+
+        function formatBadgeValue(val) {
+            return currencySymbol + Math.round(val).toLocaleString('en-IN');
+        }
+
+        function calculateCatmullRomPath(points) {
+            if (points.length === 0) return "";
+            if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+            if (points.length === 2) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
+
+            let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+            for (let i = 0; i < points.length - 1; i++) {
+                const p0 = i > 0 ? points[i - 1] : points[i];
+                const p1 = points[i];
+                const p2 = points[i + 1];
+                const p3 = i < points.length - 2 ? points[i + 2] : p2;
+
+                const cp1x = p1.x + (p2.x - p0.x) / 6;
+                const cp1y = p1.y + (p2.y - p0.y) / 6;
+                const cp2x = p2.x - (p3.x - p1.x) / 6;
+                const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+                d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+            }
+            return d;
+        }
+
+        function renderChart() {
+            const wrapper = document.getElementById("chart-wrapper");
+            const svg = document.getElementById("chart-svg");
+            const gridGroup = document.getElementById("grid-group");
+            const areaGroup = document.getElementById("area-group");
+            const lineGroup = document.getElementById("line-group");
+            const labelsGroup = document.getElementById("labels-group");
+            const pointsGroup = document.getElementById("points-group");
+            const tooltipGroup = document.getElementById("tooltip-group");
+
+            const width = wrapper.clientWidth || window.innerWidth || 350;
+            const height = wrapper.clientHeight || window.innerHeight || 200;
+
+            svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+            clearGroup(gridGroup);
+            clearGroup(areaGroup);
+            clearGroup(lineGroup);
+            clearGroup(labelsGroup);
+            clearGroup(pointsGroup);
+            clearGroup(tooltipGroup);
+
+            if (!currentData || currentData.length === 0) {
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", (width / 2).toFixed(1));
+                text.setAttribute("y", (height / 2).toFixed(1));
+                text.setAttribute("class", "empty-state");
+                text.setAttribute("fill", "#94A3B8");
+                text.setAttribute("font-size", "13px");
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("dominant-baseline", "central");
+                text.textContent = "No earnings data available";
+                labelsGroup.appendChild(text);
+                return;
+            }
+
+            const padding = { top: 34, right: 18, bottom: 26, left: 42 };
+            const plotWidth = Math.max(width - padding.left - padding.right, 10);
+            const plotHeight = Math.max(height - padding.top - padding.bottom, 10);
+
+            const maxEarnings = Math.max(...currentData.map(d => d.earnings), 1000);
+            let yMax = 40000;
+            if (maxEarnings > 40000) {
+                yMax = Math.ceil(maxEarnings / 20000) * 20000;
+            } else if (maxEarnings <= 20000) {
+                yMax = 20000;
+            }
+
+            const yTicks = [0, yMax * 0.25, yMax * 0.5, yMax];
+
+            yTicks.forEach(val => {
+                const yPos = padding.top + plotHeight - ((val / yMax) * plotHeight);
+
+                // Grid line
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", padding.left);
+                line.setAttribute("y1", yPos.toFixed(1));
+                line.setAttribute("x2", width - padding.right);
+                line.setAttribute("y2", yPos.toFixed(1));
+                line.setAttribute("class", "grid-line");
+                line.setAttribute("stroke", "#EEF2F6");
+                line.setAttribute("stroke-width", "1");
+                line.setAttribute("stroke-dasharray", "4 3");
+                gridGroup.appendChild(line);
+
+                // Y label
+                const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                label.setAttribute("x", padding.left - 8);
+                label.setAttribute("y", (yPos + 4).toFixed(1));
+                label.setAttribute("text-anchor", "end");
+                label.setAttribute("class", "axis-label");
+                label.setAttribute("fill", "#94A3B8");
+                label.setAttribute("font-size", "11px");
+                label.setAttribute("font-weight", "500");
+                label.textContent = formatCurrency(val);
+                labelsGroup.appendChild(label);
+            });
+
+            // Map data points
+            const coords = currentData.map((d, index) => {
+                const x = padding.left + (index / Math.max(currentData.length - 1, 1)) * plotWidth;
+                const clampedVal = Math.max(d.earnings, 0);
+                const y = padding.top + plotHeight - ((clampedVal / yMax) * plotHeight);
+                return { x, y, data: d, index };
+            });
+
+            // Build smooth curve path
+            const curveD = calculateCatmullRomPath(coords);
+
+            // Area path closing at baseline
+            const baselineY = padding.top + plotHeight;
+            const areaD = `${curveD} L ${coords[coords.length - 1].x.toFixed(1)} ${baselineY.toFixed(1)} L ${coords[0].x.toFixed(1)} ${baselineY.toFixed(1)} Z`;
+
+            // Draw Area
+            const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            area.setAttribute("d", areaD);
+            area.setAttribute("class", "chart-area");
+            area.setAttribute("fill", "url(#areaGradient)");
+            areaGroup.appendChild(area);
+
+            // Draw Line
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            line.setAttribute("d", curveD);
+            line.setAttribute("class", "chart-line");
+            line.setAttribute("fill", "none");
+            line.setAttribute("stroke", "#007AFF");
+            line.setAttribute("stroke-width", "2.5");
+            line.setAttribute("stroke-linecap", "round");
+            line.setAttribute("stroke-linejoin", "round");
+            lineGroup.appendChild(line);
+
+            // Draw X-axis labels and points
+            coords.forEach((pt, i) => {
+                // X label
+                const xLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                xLabel.setAttribute("x", pt.x.toFixed(1));
+                xLabel.setAttribute("y", (height - 8).toFixed(1));
+                xLabel.setAttribute("text-anchor", "middle");
+                xLabel.setAttribute("class", "axis-label");
+                xLabel.setAttribute("fill", "#94A3B8");
+                xLabel.setAttribute("font-size", "11px");
+                xLabel.setAttribute("font-weight", "500");
+                xLabel.textContent = pt.data.month;
+                labelsGroup.appendChild(xLabel);
+
+                // Point circle
+                const isSelected = (i === selectedIndex);
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", pt.x.toFixed(1));
+                circle.setAttribute("cy", pt.y.toFixed(1));
+                circle.setAttribute("r", isSelected ? "4.5" : "3");
+                circle.setAttribute("class", "point-outer");
+                circle.setAttribute("fill", "#007AFF");
+                circle.setAttribute("stroke", "#FFFFFF");
+                circle.setAttribute("stroke-width", "2");
+                circle.style.cursor = "pointer";
+
+                // Tap interaction to select point
+                circle.addEventListener("click", () => {
+                    selectedIndex = i;
+                    renderChart();
+                });
+
+                pointsGroup.appendChild(circle);
+            });
+
+            // Draw Tooltip / Badge for selected/peak point
+            if (selectedIndex >= 0 && selectedIndex < coords.length) {
+                const activePt = coords[selectedIndex];
+                const badgeTextStr = formatBadgeValue(activePt.data.earnings);
+
+                // Badge container group
+                const badgeG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                const badgeWidth = 66;
+                const badgeHeight = 22;
+                let badgeX = activePt.x - badgeWidth / 2;
+                badgeX = Math.max(padding.left, Math.min(badgeX, width - padding.right - badgeWidth));
+                const badgeY = Math.max(activePt.y - badgeHeight - 8, 4);
+
+                // Background pill
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", badgeX.toFixed(1));
+                rect.setAttribute("y", badgeY.toFixed(1));
+                rect.setAttribute("width", badgeWidth);
+                rect.setAttribute("height", badgeHeight);
+                rect.setAttribute("rx", "6");
+                rect.setAttribute("ry", "6");
+                rect.setAttribute("class", "badge-bg");
+                rect.setAttribute("fill", "#1E293B");
+                badgeG.appendChild(rect);
+
+                // Downward pointer triangle
+                const pointer = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                const tipX = activePt.x;
+                const tipY = activePt.y - 2;
+                const baseLeft = activePt.x - 4;
+                const baseRight = activePt.x + 4;
+                const baseY = badgeY + badgeHeight;
+                pointer.setAttribute("points", `${tipX.toFixed(1)},${tipY.toFixed(1)} ${baseLeft.toFixed(1)},${baseY.toFixed(1)} ${baseRight.toFixed(1)},${baseY.toFixed(1)}`);
+                pointer.setAttribute("class", "badge-pointer");
+                pointer.setAttribute("fill", "#1E293B");
+                badgeG.appendChild(pointer);
+
+                // Text
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", (badgeX + badgeWidth / 2).toFixed(1));
+                text.setAttribute("y", (badgeY + badgeHeight / 2).toFixed(1));
+                text.setAttribute("class", "badge-text");
+                text.setAttribute("fill", "#FFFFFF");
+                text.setAttribute("font-size", "11px");
+                text.setAttribute("font-weight", "600");
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("dominant-baseline", "central");
+                text.textContent = badgeTextStr;
+                badgeG.appendChild(text);
+
+                tooltipGroup.appendChild(badgeG);
+            }
+        }
+
+        // Global update function called from Android Kotlin
+        window.updateChartData = function(jsonStr, optionsJsonStr) {
+            try {
+                if (optionsJsonStr) {
+                    const opts = JSON.parse(optionsJsonStr);
+                    if (opts.currency) currencySymbol = opts.currency;
+                }
+            } catch (e) {
+                console.warn("[EarningsChart] Could not parse chart options", e);
+            }
+
+            try {
+                if (typeof jsonStr === "string") {
+                    const parsed = JSON.parse(jsonStr);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        currentData = parsed;
+                        let maxIdx = 0;
+                        let maxVal = -1;
+                        currentData.forEach((d, idx) => {
+                            if (d.earnings > maxVal) {
+                                maxVal = d.earnings;
+                                maxIdx = idx;
+                            }
+                        });
+                        selectedIndex = maxIdx;
+                    }
+                }
+            } catch (e) {
+                console.error("[EarningsChart] Failed to parse data in updateChartData", e);
+            }
+            renderChart();
+        };
+
+        function initChart() {
+            try {
+                if (window.Android && typeof window.Android.getChartData === "function") {
+                    const raw = window.Android.getChartData();
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            currentData = parsed;
+                            let maxIdx = 0;
+                            let maxVal = -1;
+                            currentData.forEach((d, idx) => {
+                                if (d.earnings > maxVal) {
+                                    maxVal = d.earnings;
+                                    maxIdx = idx;
+                                }
+                            });
+                            selectedIndex = maxIdx;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("[EarningsChart] Could not fetch initial data from Android interface", e);
+            }
+
+            renderChart();
+
+            const wrapper = document.getElementById("chart-wrapper");
+            if (window.ResizeObserver) {
+                new ResizeObserver(() => renderChart()).observe(wrapper);
+            } else {
+                window.addEventListener("resize", renderChart);
+            }
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initChart);
+        } else {
+            initChart();
+        }
+    </script>
+</body>
+</html>

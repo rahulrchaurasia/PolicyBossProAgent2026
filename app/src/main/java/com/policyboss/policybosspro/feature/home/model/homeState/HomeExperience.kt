@@ -1,0 +1,12 @@
+package com.policyboss.policybosspro.feature.home.model.homeState
+
+
+//Mark : HomeViewModel decides which experience to show.
+enum class HomeExperience {
+
+    EXPLORE,
+
+    ACCESS_POLICY,
+
+    EARN_RENEWALS
+}

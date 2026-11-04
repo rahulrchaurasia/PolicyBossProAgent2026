@@ -1,0 +1,168 @@
+package com.policyboss.policybosspro.feature.onboarding.ui
+
+
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.feature.onboarding.model.OnboardingPage
+import com.policyboss.policybosspro.ui.components.card.BottomActionCard
+import com.policyboss.policybosspro.ui.theme.AppColors
+import kotlinx.coroutines.launch
+
+@Composable
+fun rememberOnboardingPages(): List<OnboardingPage> {
+    return remember {
+        listOf(
+            OnboardingPage(
+                imageResId = R.drawable.onboarding1,
+                title = "Sync contacts to find top \n leads and earn instantly \n from their renewals"),
+            OnboardingPage(
+                imageResId = R.drawable.onboarding2,
+                title = "Get top recommended \n quotes from across 50+ \n Insurers"),
+            OnboardingPage(
+                imageResId = R.drawable.onboarding3,
+                title = "Grow your business with \n  our comprehensive \n  learning modules",
+
+            )
+        )
+    }
+}
+
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun OnboardingPagerScreen(
+    onFinish: () -> Unit
+) {
+    val pages = rememberOnboardingPages()
+    val pagerState = rememberPagerState { pages.size }
+    val scope = rememberCoroutineScope()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // ✅ Background + Pager
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { pageIndex ->
+
+            val page = pages[pageIndex]
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                AppColors.BluePrimary,
+                                AppColors.BrandGreenLight
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center // 👈 KEY FIX
+            ) {
+
+                if (page.content != null) {
+                    page.content.invoke()
+                } else {
+                    Image(
+                        painter = painterResource(id = page.imageResId),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                            .offset(y = (-25).dp)
+
+                    )
+
+
+
+
+                }
+            }
+        }
+
+        // ✅ Clean Header
+        HeaderSection(
+            onSkipClick = onFinish,
+            showSkip = pagerState.currentPage != pages.lastIndex
+        )
+
+        // ✅ Bottom Card
+        BottomActionCard(
+            page = pages[pagerState.currentPage],
+            pageIndex = pagerState.currentPage,
+            totalPages = pages.size,
+            onContinue = {
+                if (pagerState.currentPage == pages.lastIndex) {
+                    onFinish()
+                } else {
+                    scope.launch {
+                        pagerState.animateScrollToPage(
+                            pagerState.currentPage + 1
+                        )
+                    }
+                }
+            },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+}
+
+// ============================================
+// HEADER (STATIC)
+// ============================================
+
+@Composable
+fun HeaderSection(
+    onSkipClick: () -> Unit,
+    showSkip: Boolean = true
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.End
+    ) {
+        if (showSkip) {
+            Text(
+                text = "Skip",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onSkipClick() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
+    }
+}

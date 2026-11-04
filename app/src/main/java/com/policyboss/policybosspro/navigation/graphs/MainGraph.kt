@@ -1,0 +1,248 @@
+package com.policyboss.policybosspro.navigation.graphs
+
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.compose.composable
+import androidx.navigation.navigation
+import com.policyboss.policybosspro.feature.home.graph.homeGraph
+
+import com.policyboss.policybosspro.navigation.AppNavigator
+import com.policyboss.policybosspro.navigation.Dest
+
+//import com.interstellar.rahulpihujetpackdemo.rootGraph.graph.route
+
+/*
+   ***************************************************
+
+
+    *
+    * RootNavGraph
+ ├── AuthGraph
+ └── MainGraph
+        ├── MainHome (Bottom Tabs Container)
+        ├── HomeGraph
+        ├── ProductGraph
+        ├── CartGraph
+        └── CarGraph
+    ***************************************************
+
+  *
+  * ✅ 🧠 GOLDEN RULE (FINAL)
+        Usage	                 What to use
+        composable:	              composable<Dest.Home> ✅
+        navigate():	              navigate(Dest.Home) ✅
+       startDestination	          Dest.Home.route() ✅
+        navigation(route=...)	   "graph_name" string ✅
+ */
+
+//2️⃣ MAIN APP MODULE
+//this for main App Module
+//Note: we diveded graph in 3 module
+
+// NavGraph is the actual map that says where each screen lives:
+
+
+ /*
+
+ 🧠 INDUSTRY PATTERN (What you are doing now)
+✔ Structure:
+RootNavGraph
+ ├── Splash
+ ├── AuthGraph (optional navigation{})
+ └── MainGraph (FLAT)
+       ├── MainHome (UI container)
+       ├── Tabs
+       │     ├── Home
+       │     ├── WishList
+       │     ├── Cart
+       │     └── Profile
+       │
+       ├── homeGraph()   // products flow
+       ├── CheckoutGraph()   // firther paymet and receipt Flow
+       ├── carGraph()    // multi-step → can use navigation{}
+ ✔ Tabs (must be in MainGraph)
+composable<Dest.Home> { HomeScreen() }
+composable<Dest.WishList> { WishListScreen() }
+composable<Dest.Cart> { TransactionScreen() }
+composable<Dest.Profile> { ProfileScreen() }
+
+  */
+
+/*
+////// Vote :-VVIMP   we just separate graph in 3 module but not created nested graph   ////////////////////////////
+
+👉 This is modularization, NOT navigation graph
+
+✔ Feature Flow (separated but NOT graph)
+fun homeGraph() {
+    composable<Dest.Products> { ... }
+    composable<Dest.ProductDetail> { ... }
+}
+ */
+
+/*
+Note :
+4. Your Statement (Verification)
+
+“MainGraph handles all navigation, and we split into child functions, not graphs”
+
+👉 ✔ 100% CORRECT
+
+This is exactly how most production apps are built.
+ */
+
+
+/**********************  Base Graph Flow Concept *****************************/
+/*
+
+✅ What is a “Feature Graph” in YOUR project?
+
+👉 A feature graph = a group of related screens (a flow / journey)
+
+NOT necessarily something written using navigation {}.
+
+🔍 In YOUR current project
+🔴 These are ROOT / FLOW graphs
+
+These represent top-level app flows:
+
+RootNavGraph
+ ├── authGraph   ✅ (Login/Register flow)
+ └── mainGraph   ✅ (Main app flow)
+
+👉 These are NOT feature graphs
+👉 These are APP ENTRY FLOWS
+
+🟢 These are your Feature Graphs
+
+These are inside mainGraph:
+
+1. Home Feature
+homeGraph()
+
+Flow:
+
+Home → Products → ProductDetail
+2. Checkout Feature
+checkoutGraph()   // (your cartGraph renamed)
+
+Flow:
+
+Cart → CartDetail → Receipt
+3. Car Feature
+carGraph()
+
+Flow:
+
+CarInsurance → CarJourney
+🧠 KEY UNDERSTANDING
+Type	Example	Purpose
+Root Graph	authGraph, mainGraph	App-level flow switching
+Feature Graph	homeGraph, checkoutGraph, carGraph	Business logic journeys
+Destination	Home, ProductDetail	Single screen
+❗ IMPORTANT CLARIFICATION
+
+“Feature graph ≠ must use navigation{}”
+
+Means:
+
+You can define feature graph in 2 ways
+
+✅ OPTION 1 (YOUR CURRENT — GOOD)
+
+No nested graph, just grouping:
+
+fun NavGraphBuilder.homeGraph() {
+    composable<Dest.Products> { ... }
+    composable<Dest.ProductDetail> { ... }
+}
+
+✔ Simple
+✔ Clean
+✔ Recommended for small–medium apps
+
+✅ OPTION 2 (WHEN FLOW IS BIG)
+navigation<Dest.HomeGraph>(
+    startDestination = Dest.Products
+) {
+    composable<Dest.Products> { ... }
+    composable<Dest.ProductDetail> { ... }
+}
+
+✔ Needed when:
+
+deep navigation
+multiple entry points
+independent back stack
+🔥 YOUR CURRENT SETUP (FINAL CLARITY)
+✔ Root level
+RootNavGraph
+✔ Flow level
+authGraph
+mainGraph
+✔ Feature level (inside mainGraph)
+homeGraph
+checkoutGraph
+carGraph
+🚨 WHEN SHOULD YOU USE navigation {}?
+
+Only when:
+
+✅ Case 1: Independent flow
+
+Example:
+
+Checkout flow
+Step1 → Step2 → Payment → Success
+✅ Case 2: You want separate backstack
+
+Example:
+
+Bottom tabs with independent history
+✅ Case 3: Deep linking into sub-flow
+❌ WHEN NOT NEEDED (YOUR CURRENT CASE)
+
+Your flows:
+
+Products → Detail → Cart → Receipt
+
+👉 Linear flow
+👉 No need separate graph
+
+✔ Your current approach is correct
+
+💡 SIMPLE RULE (REMEMBER THIS)
+
+If your flow is just navigation chain → DON'T use navigation{}
+
+If your flow is complex / independent → USE navigation{}
+
+🎯 FINAL ANSWER
+
+👉 authGraph & mainGraph = NOT feature graphs
+👉 They are app-level graphs
+
+👉 homeGraph, cartGraph, carGraph = Feature graphs
+ */
+
+import com.policyboss.policybosspro.feature.lead.navigation.leadGraph
+import com.policyboss.policybosspro.feature.dashboard.navigation.dashboardGraph
+import com.policyboss.policybosspro.feature.sales.navigation.salesGraph
+import com.policyboss.policybosspro.feature.grow.navigation.growGraph
+
+fun NavGraphBuilder.mainGraph(
+   // navController: NavHostController,
+    navigator: AppNavigator,
+    padding: PaddingValues
+) {
+    navigation<Dest.MainGraph>(
+        startDestination = Dest.HomeGraph
+    ) {
+        homeGraph(appNavigator = navigator, padding)
+        leadGraph(navigator, padding)
+        dashboardGraph(navigator, padding)
+        salesGraph(navigator, padding)
+        growGraph(navigator, padding)
+//        privilegeGraph( appNavigator = navigator, padding)   // the one graph needing navController
+    }
+}

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Business Snapshot 3D Chart</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      background-color: #FFFFFF;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow-x: hidden;
+      overflow-y: hidden;
+    }
+    #chart-container {
+      width: 100%;
+      padding: 10px 12px 14px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #FFFFFF;
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      overflow: visible;
+    }
+    .insurer-label {
+      font-size: 11px;
+      font-weight: 600;
+      fill: #1E293B;
+      text-anchor: end;
+      dominant-baseline: middle;
+    }
+    .bar-value {
+      font-size: 10px;
+      font-weight: 700;
+      fill: #1E293B;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .grid-line {
+      stroke: #E2E8F0;
+      stroke-width: 1;
+      stroke-dasharray: none;
+    }
+    .axis-label {
+      font-size: 11px;
+      fill: #64748B;
+      text-anchor: middle;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div id="chart-container">
+    <svg id="chart-svg" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <script>
+    const items = [
+      { name: "Bajaj General", value: 21, color: "#EAB308", top: "#FACC15", side: "#CA8A04" },
+      { name: "", value: 16, color: "#8B5CF6", top: "#A78BFA", side: "#7C3AED" },
+      { name: "TATA AIG", value: 11, color: "#F97316", top: "#FB923C", side: "#EA580C" },
+      { name: "", value: 10, color: "#93C5FD", top: "#BFDBFE", side: "#60A5FA" },
+      { name: "Zuno", value: 8, color: "#BE123C", top: "#E11D48", side: "#9F1239" },
+      { name: "", value: 8, color: "#C5B287", top: "#D8C7A5", side: "#A89369" },
+      { name: "Royal Sundaram", value: 7, color: "#64748B", top: "#94A3B8", side: "#475569" },
+      { name: "", value: 6, color: "#059669", top: "#10B981", side: "#047857" },
+      { name: "IndusInd", value: 5, color: "#F472B6", top: "#F9A8D4", side: "#DB2777" },
+      { name: "", value: 4, color: "#0284C7", top: "#38BDF8", side: "#0369A1" },
+      { name: "Liberty General", value: 3, color: "#FB923C", top: "#FDBA74", side: "#EA580C" },
+      { name: "", value: 3, color: "#6366F1", top: "#818CF8", side: "#4F46E5" },
+      { name: "HDFC ERGO", value: 2, color: "#F59E0B", top: "#FBBF24", side: "#D97706" },
+      { name: "", value: 2, color: "#A21CAF", top: "#C026D3", side: "#86198F" },
+      { name: "Shriram General", value: 1, color: "#84CC16", top: "#A3E635", side: "#65A30D" },
+      { name: "", value: 1, color: "#78350F", top: "#92400E", side: "#451A03" }
+    ];
+
+    function render3DBarChart() {
+      const svg = document.getElementById('chart-svg');
+      const width = 360;
+      const height = 480;
+      const margin = { top: 20, right: 30, bottom: 35, left: 110 };
+      const chartWidth = width - margin.left - margin.right;
+      const chartHeight = height - margin.top - margin.bottom;
+
+      const maxValue = 30; // Grid up to 30
+      const barHeight = 15;
+      const barSpacing = (chartHeight - (items.length * barHeight)) / (items.length - 1);
+      const depthX = 14;
+      const depthY = 7;
+
+      let svgContent = '';
+
+      // Grid Lines & Axis Labels (0, 10, 20, 30)
+      const ticks = [0, 10, 20, 30];
+      ticks.forEach(t => {
+        const x = margin.left + (t / maxValue) * chartWidth;
+        svgContent += `<line x1="${x}" y1="${margin.top - 5}" x2="${x}" y2="${margin.top + chartHeight}" class="grid-line" />`;
+        svgContent += `<text x="${x}" y="${margin.top + chartHeight + 20}" class="axis-label">${t}</text>`;
+      });
+
+      // Render 3D Bars
+      items.forEach((item, index) => {
+        const y = margin.top + index * (barHeight + barSpacing);
+        const barWidth = Math.max((item.value / maxValue) * chartWidth, 12);
+        const x0 = margin.left;
+
+        // Insurer Name Label (if not empty)
+        if (item.name) {
+          svgContent += `<text x="${x0 - 8}" y="${y + barHeight / 2}" class="insurer-label">${item.name}</text>`;
+        }
+
+        // 3D Isometric Bar Geometry
+        // 1. Top face: polygon (x0, y) -> (x0 + depthX, y - depthY) -> (x0 + barWidth + depthX, y - depthY) -> (x0 + barWidth, y)
+        const pTop = `${x0},${y} ${x0 + depthX},${y - depthY} ${x0 + barWidth + depthX},${y - depthY} ${x0 + barWidth},${y}`;
+        // 2. Right face: polygon (x0 + barWidth, y) -> (x0 + barWidth + depthX, y - depthY) -> (x0 + barWidth + depthX, y - depthY + barHeight) -> (x0 + barWidth, y + barHeight)
+        const pSide = `${x0 + barWidth},${y} ${x0 + barWidth + depthX},${y - depthY} ${x0 + barWidth + depthX},${y - depthY + barHeight} ${x0 + barWidth},${y + barHeight}`;
+
+        // Top polygon
+        svgContent += `<polygon points="${pTop}" fill="${item.top}" stroke="#475569" stroke-width="0.5" />`;
+        // Right polygon
+        svgContent += `<polygon points="${pSide}" fill="${item.side}" stroke="#475569" stroke-width="0.5" />`;
+        // Front rectangle
+        svgContent += `<rect x="${x0}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${item.color}" stroke="#475569" stroke-width="0.5" />`;
+
+        // Value inside front face
+        const valX = x0 + barWidth / 2;
+        const valY = y + barHeight / 2 + 1;
+        svgContent += `<text x="${valX}" y="${valY}" class="bar-value">${item.value}</text>`;
+      });
+
+      svg.innerHTML = svgContent;
+    }
+
+    render3DBarChart();
+  </script>
+</body>
+</html>
