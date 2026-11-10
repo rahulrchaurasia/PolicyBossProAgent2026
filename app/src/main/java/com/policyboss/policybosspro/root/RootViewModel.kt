@@ -29,19 +29,24 @@ class RootViewModel @Inject constructor(
     }
 
     private fun checkSession() {
-
         viewModelScope.launch {
-
-            val isLoggedIn =
-                appDataManager.isUserLoggedIn()
+            val isLoggedIn = appDataManager.isUserLoggedIn()
+            val ssId = appDataManager.getSsId()
+            val isSyncDone = appDataManager.isContactSyncCompleted(ssId)
 
             _uiState.update {
-
                 it.copy(
                     isLoading = false,
-                    startDestination =
-                        if (isLoggedIn) Dest.MainGraph
-                        else Dest.CustomSplash
+                    startDestination = when {
+                        !isLoggedIn -> Dest.CustomSplash
+                        !isSyncDone -> Dest.AuthGraph
+                        else -> Dest.MainGraph
+                    },
+                    authStartDestination = if (isLoggedIn && !isSyncDone) {
+                        Dest.WelcomeSyncContact
+                    } else {
+                        Dest.Welcome
+                    }
                 )
             }
         }

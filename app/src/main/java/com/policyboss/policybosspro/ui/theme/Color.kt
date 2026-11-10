@@ -44,6 +44,7 @@ object AppColors {
     val PaleCyan = Color(0xFFEBFFFC)
 
 
+    val FooterBlue = Color(0xFFEBFCFF)
     val PaleCyanBg = Color(0xFFEAF8FD)
 
     val SegmentedBorder = Color(0xFFE3EEF6)

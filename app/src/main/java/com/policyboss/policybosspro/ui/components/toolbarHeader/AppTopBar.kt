@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.components.button.OutlinedIconButton
 import com.policyboss.policybosspro.ui.theme.AppColors
 
@@ -60,22 +61,14 @@ fun AppTopBar(
         // ---------------------------------------------------------
 
         if (onBackClick != null) {
-
-            OutlinedIconButton(
-                icon = painterResource(
-                    id = R.drawable.ic_chevron_left
-                ),
-                contentDescription = "Back",
+            AppBackButton(
                 onClick = onBackClick,
-                iconTint = backIconTint,
-                modifier = Modifier.size(38.dp)
+                tint = backIconTint
             )
-
         } else {
-
             // Reserve same width so title remains centered
             Spacer(
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(48.dp)
             )
         }
 
@@ -117,14 +110,14 @@ fun AppTopBar(
                 contentDescription = "Action",
                 onClick = onTrailingClick,
                 iconTint = trailingIconTint,
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(48.dp)
             )
 
         } else {
 
             // Reserve same width as trailing button
             Spacer(
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(48.dp)
             )
         }
     }

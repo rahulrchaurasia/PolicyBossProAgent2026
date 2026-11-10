@@ -217,12 +217,39 @@ class AppDataManager @Inject constructor(
     }
 
     // =========================================================================
+    // CONTACT SYNC ONBOARDING STATUS
+    // =========================================================================
+
+    /**
+     * Checks if contact synchronization onboarding has been successfully completed
+     * for the specific user account identified by [ssId].
+     */
+    suspend fun isContactSyncCompleted(ssId: String): Boolean {
+        if (ssId.isBlank() || ssId == "0") return false
+        val key = booleanPreferencesKey("key_is_contact_sync_completed_$ssId")
+        return prefFlow.first()[key] ?: false
+    }
+
+    /**
+     * Persists the contact synchronization completion status for the account identified by [ssId].
+     */
+    suspend fun setContactSyncCompleted(ssId: String, completed: Boolean) {
+        if (ssId.isNotBlank() && ssId != "0") {
+            val key = booleanPreferencesKey("key_is_contact_sync_completed_$ssId")
+            dataStore.edit { pref ->
+                pref[key] = completed
+            }
+        }
+    }
+
+    // =========================================================================
     // 5. SESSION MANAGEMENT & CLEAR
     // =========================================================================
 
     /**
      * Clears user-specific authentication and profile data upon logout,
-     * while retaining non-sensitive app configurations (e.g. support number).
+     * including contact synchronization status, so a fresh login must
+     * complete the mandatory synchronization journey again.
      */
     suspend fun clearUserSession() {
         dataStore.edit { pref ->
@@ -234,6 +261,11 @@ class AppDataManager @Inject constructor(
             pref.remove(KEY_USER_SSID)
             pref.remove(KEY_USER_FBAID)
             pref.remove(KEY_USER_TYPE)
+
+            val syncKeys = pref.asMap().keys.filter { it.name.startsWith("key_is_contact_sync_completed_") }
+            syncKeys.forEach { key ->
+                pref.remove(key)
+            }
         }
     }
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -29,17 +30,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.feature.syncContact.model.SyncPhase
 import com.policyboss.policybosspro.feature.syncContact.model.SyncProcessingState
 import com.policyboss.policybosspro.feature.syncContact.ui.components.AvatarClusterView
 import com.policyboss.policybosspro.feature.syncContact.ui.components.BossCoinRewardCard
 import com.policyboss.policybosspro.feature.syncContact.ui.components.EarningHighlightCard
 import com.policyboss.policybosspro.feature.syncContact.ui.components.PillCtaButton
 import com.policyboss.policybosspro.feature.syncContact.ui.components.RadarRingsGraphic
+import com.policyboss.policybosspro.ui.components.animation.AppLottieAnimation
 import com.policyboss.policybosspro.ui.theme.AppColors
 import com.policyboss.policybosspro.ui.theme.PolicyBossTheme
 
@@ -85,78 +91,85 @@ private fun FetchingContactsContent(
     onRetryClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    key(uiState.currentPhase) {
-        val animatedProgress by animateFloatAsState(
-            targetValue = uiState.progress.coerceIn(0f, 1f),
-            animationSpec = tween(durationMillis = 250),
-            label = "AnimatedProgressBar"
+    val animatedProgress by animateFloatAsState(
+        targetValue = uiState.progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 300),
+        label = "AnimatedProgressBar"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("FetchingContactsContent")
+            .background(AppColors.SyncDarkSurface)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        // Radar Concentric Rings
+        RadarRingsGraphic(
+            ringColor = AppColors.SyncRadarRing,
+            ringCount = 5,
+            enablePulse = true
         )
 
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(AppColors.SyncDarkSurface)
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-            contentAlignment = Alignment.Center
+        // Center Content: Avatar Cluster + Progress Bar
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 24.dp)
         ) {
-            // Radar Concentric Rings
-            RadarRingsGraphic(
-                ringColor = AppColors.SyncRadarRing,
-                ringCount = 5,
-                enablePulse = true
+            AvatarClusterView(
+                count = uiState.contactsFound,
+                statusText = uiState.statusMessage,
+                statusTextColor = Color.White
             )
 
-            // Center Content: Avatar Cluster + Progress Bar
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            ) {
-                AvatarClusterView(
-                    count = uiState.contactsFound,
-                    statusText = uiState.statusMessage,
-                    statusTextColor = Color.White
-                )
+            Spacer(modifier = Modifier.height(20.dp))
 
+            // Dynamic Progress Bar: Indeterminate when progress is 0f or during fetching phases, Determinate when uploading chunks
+            val isIndeterminate = uiState.progress <= 0f || uiState.currentPhase == SyncPhase.CONTACT_FETCHING || uiState.currentPhase == SyncPhase.CALL_LOG_FETCHING
+
+            if (isIndeterminate) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .width(220.dp)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = AppColors.HighlightCardGold,
+                    trackColor = AppColors.SyncProgressTrack
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = { animatedProgress.coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .width(220.dp)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = AppColors.HighlightCardGold,
+                    trackColor = AppColors.SyncProgressTrack
+                )
+            }
+
+            if (!uiState.errorMessage.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Smooth Horizontal Progress Bar
-                Box(
-                    modifier = Modifier
-                        .width(180.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(AppColors.SyncProgressTrack)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(animatedProgress)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(AppColors.HighlightCardGold)
-                    )
-                }
+                Text(
+                    text = uiState.errorMessage,
+                    color = AppColors.ErrorLight,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
 
-                if (!uiState.errorMessage.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    Text(
-                        text = uiState.errorMessage,
-                        color = AppColors.ErrorLight,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    PillCtaButton(
-                        text = "Retry Sync",
-                        onClick = onRetryClick
-                    )
-                }
+                PillCtaButton(
+                    text = "Retry Sync",
+                    onClick = onRetryClick,
+                    modifier = Modifier.testTag("RetrySyncButton")
+                )
             }
         }
     }
@@ -195,6 +208,7 @@ private fun ContactsFetchedSuccessContent(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .testTag("ContactsFetchedSuccessContent")
             .background(AppColors.SyncSuccessBackground)
             .statusBarsPadding()
     ) {
@@ -204,6 +218,24 @@ private fun ContactsFetchedSuccessContent(
             ringCount = 4,
             enablePulse = false
         )
+
+        // Celebratory Confetti Cannon Overlay:
+        // success.json is a high-resolution 1827x2436 canvas. Rendering it full-screen
+        // allows the cannons (left, right, top) to fire confetti across the entire device viewport.
+        key(uiState.isSuccess) {
+            AppLottieAnimation(
+                rawResId = R.raw.success,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("SyncSuccessConfettiAnimation"),
+                iterations = 1,
+                speed = 1.0f,
+                isPlaying = true,
+                restartOnPlay = true,
+                contentScale = ContentScale.Crop,
+                ignoreSystemAnimatorScale = true
+            )
+        }
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -217,7 +249,25 @@ private fun ContactsFetchedSuccessContent(
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Play registration_success.json (animated checkmark badge) inside the icon slot.
+                // Keyed by success state so entering Screen C restarts cleanly from frame 0.
+                key(uiState.isSuccess) {
+                    AppLottieAnimation(
+                        rawResId = R.raw.registration_success,
+                        modifier = Modifier
+                            .size(90.dp)
+                            .testTag("SyncSuccessLottieAnimation"),
+                        iterations = 1,
+                        speed = 1.0f,
+                        isPlaying = true,
+                        restartOnPlay = true,
+                        ignoreSystemAnimatorScale = true
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Avatar cluster with final count
                 AvatarClusterView(
@@ -280,7 +330,8 @@ private fun ContactsFetchedSuccessContent(
 
                     PillCtaButton(
                         text = "Discover Policy Boss",
-                        onClick = onDiscoverClick
+                        onClick = onDiscoverClick,
+                        modifier = Modifier.testTag("DiscoverPolicyBossButton")
                     )
                 }
             }

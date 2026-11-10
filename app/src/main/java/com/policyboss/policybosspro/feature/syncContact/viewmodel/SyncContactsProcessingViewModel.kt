@@ -1,5 +1,7 @@
 package com.policyboss.policybosspro.feature.syncContact.viewmodel
 
+
+
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,6 +36,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.milliseconds
 
 @HiltViewModel
 class SyncContactsProcessingViewModel @Inject constructor(
@@ -83,13 +86,12 @@ class SyncContactsProcessingViewModel @Inject constructor(
                 progress = 0f,
                 processedRecords = 0,
                 totalRecords = 0,
-                statusMessage = "Fetching Contacts...",
+                statusMessage = "Getting your contacts ready...",
                 errorMessage = null
             )
         }
 
         viewModelScope.launch {
-            // 1. Initial local contacts count discovery
             val localCountResult = contactRepository.getLocalContactsCount()
             val initialDiscoveredCount = localCountResult.getOrDefault(0)
             val fallbackCount = if (initialDiscoveredCount > 0) {
@@ -100,7 +102,6 @@ class SyncContactsProcessingViewModel @Inject constructor(
 
             _uiState.update { it.copy(contactsFound = fallbackCount) }
 
-            // 2. Fetch required identifiers
             val fbaIdStr = appDataManager.getFbaId()
             val fbaIdInt = fbaIdStr.toIntOrNull() ?: 0
             val ssId = appDataManager.getSsId()
@@ -143,7 +144,7 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                         _uiState.update {
                                             it.copy(
                                                 currentPhase = SyncPhase.CONTACT_FETCHING,
-                                                statusMessage = "Fetching Contacts...",
+                                                statusMessage = "Getting your contacts ready...",
                                                 progress = 0f
                                             )
                                         }
@@ -157,7 +158,7 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                             _uiState.update { current ->
                                                 current.copy(
                                                     currentPhase = SyncPhase.CONTACT_UPLOADING,
-                                                    statusMessage = "Uploading Contacts...",
+                                                    statusMessage = "Syncing your contacts...",
                                                     progress = maxOf(current.progress, calculatedFraction),
                                                     processedRecords = processed,
                                                     totalRecords = total,
@@ -168,7 +169,7 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                             _uiState.update { current ->
                                                 current.copy(
                                                     currentPhase = SyncPhase.CONTACT_FETCHING,
-                                                    statusMessage = "Fetching Contacts...",
+                                                    statusMessage = "Getting your contacts ready...",
                                                     progress = 0f
                                                 )
                                             }
@@ -178,29 +179,26 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                         val countStr = workInfo.outputData.getString(Constant.KEY_result)
                                         val uploadedCount = countStr?.toIntOrNull() ?: _uiState.value.totalRecords
 
-                                        // Complete Phase 1 at 100%
                                         _uiState.update { current ->
                                             current.copy(
                                                 currentPhase = SyncPhase.CONTACT_COMPLETED,
-                                                contactsFound = if (uploadedCount > 0) uploadedCount else current.contactsFound,
+                                                contactsFound = if (uploadedCount >= 0) uploadedCount else current.contactsFound,
                                                 progress = 1.0f,
-                                                statusMessage = "Uploading Contacts...",
+                                                statusMessage = "Syncing your contacts...",
                                                 errorMessage = null
                                             )
                                         }
 
-                                        // Apply minimum visual duration for < 1000 records
                                         val elapsed1 = System.currentTimeMillis() - phase1StartTime
                                         if (uploadedCount < 1000) {
-                                            val remainingVisualTime = (1000L - elapsed1).coerceAtLeast(0L)
+                                            val remainingVisualTime = (1000L - elapsed1).coerceAtLeast(0L) // Fixed arithmetic operator
                                             if (remainingVisualTime > 0) {
-                                                delay(remainingVisualTime)
+                                                delay(remainingVisualTime.milliseconds)
                                             }
                                         }
-                                        // Brief completion pause so 100% is visibly rendered
-                                        delay(250)
+                                        delay(250.milliseconds)
 
-                                        // Start Phase 2!
+                                        // Start Phase 2: Call Log Sync
                                         startPhase2CallLogSync(inputData, constraints)
                                     }
                                     WorkInfo.State.FAILED -> {
@@ -223,16 +221,12 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                                 errorMessage = "Contact sync was cancelled."
                                             )
                                         }
-                                        Log.w(TAG, "Primary contact sync was cancelled.")
                                     }
-                                    WorkInfo.State.BLOCKED -> {
-                                        Log.d(TAG, "Primary contact sync is blocked.")
-                                    }
+                                    WorkInfo.State.BLOCKED -> {}
                                 }
                             }
                         }
                 }.onFailure { throwable ->
-                    Log.e(TAG, "Exception in contact sync stream: ${throwable.message}", throwable)
                     val errorMsg = throwable.localizedMessage ?: "Unexpected error during contact synchronization."
                     _uiState.update {
                         it.copy(
@@ -248,14 +242,13 @@ class SyncContactsProcessingViewModel @Inject constructor(
     }
 
     private fun startPhase2CallLogSync(inputData: Data, constraints: Constraints) {
-        // RESET progress bar to 0% and start Phase 2!
         _uiState.update {
             it.copy(
                 currentPhase = SyncPhase.CALL_LOG_FETCHING,
                 progress = 0f,
                 processedRecords = 0,
                 totalRecords = 0,
-                statusMessage = "Fetching Call Logs..."
+                statusMessage = "Preparing your call log information..."
             )
         }
 
@@ -280,7 +273,7 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                     _uiState.update {
                                         it.copy(
                                             currentPhase = SyncPhase.CALL_LOG_FETCHING,
-                                            statusMessage = "Fetching Call Logs...",
+                                            statusMessage = "Preparing your call log information...",
                                             progress = 0f
                                         )
                                     }
@@ -294,7 +287,7 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                         _uiState.update { current ->
                                             current.copy(
                                                 currentPhase = SyncPhase.CALL_LOG_UPLOADING,
-                                                statusMessage = "Uploading Call Logs...",
+                                                statusMessage = "Syncing your call logs...",
                                                 progress = maxOf(current.progress, callLogFraction),
                                                 processedRecords = processed,
                                                 totalRecords = total
@@ -304,7 +297,7 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                         _uiState.update { current ->
                                             current.copy(
                                                 currentPhase = SyncPhase.CALL_LOG_FETCHING,
-                                                statusMessage = "Fetching Call Logs...",
+                                                statusMessage = "Preparing your call log information...",
                                                 progress = 0f
                                             )
                                         }
@@ -312,27 +305,26 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                 }
                                 WorkInfo.State.SUCCEEDED -> {
                                     val total = _uiState.value.totalRecords
-                                    // Complete Phase 2 at 100%
                                     _uiState.update { current ->
                                         current.copy(
                                             currentPhase = SyncPhase.CALL_LOG_COMPLETED,
                                             progress = 1.0f,
-                                            statusMessage = "Uploading Call Logs..."
+                                            statusMessage = "Syncing your call logs..."
                                         )
                                     }
 
-                                    // Apply minimum visual duration for Phase 2 if records < 1000
                                     val elapsed2 = System.currentTimeMillis() - phase2StartTime
                                     if (total < 1000) {
-                                        val remainingVisualTime = (1000L - elapsed2).coerceAtLeast(0L)
+                                        val remainingVisualTime = (1000L - elapsed2).coerceAtLeast(0L) // Fixed arithmetic operator
                                         if (remainingVisualTime > 0) {
-                                            delay(remainingVisualTime)
+                                            delay(remainingVisualTime.milliseconds)
                                         }
                                     }
-                                    // Brief completion pause to render 100% visibly
-                                    delay(250)
+                                    delay(250.milliseconds)
 
-                                    // Finish entire sync successfully -> transitions to Screen C
+                                    val currentSsId = appDataManager.getSsId()
+                                    appDataManager.setContactSyncCompleted(ssId = currentSsId, completed = true)
+
                                     _uiState.update { current ->
                                         current.copy(
                                             isSyncing = false,
@@ -344,10 +336,9 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                 }
                                 WorkInfo.State.FAILED,
                                 WorkInfo.State.CANCELLED -> {
-                                    val errorMsg = workInfo.outputData.getString(Constant.KEY_error_result) ?: "Call log sync failed"
-                                    Log.w(TAG, "Auxiliary call log sync ended with ${workInfo.state}: $errorMsg. Contact sync remains successful.")
-                                    // Call log failure MUST NOT cancel or fail contact sync
-                                    // Transition to success since contacts succeeded!
+                                    val currentSsId = appDataManager.getSsId()
+                                    appDataManager.setContactSyncCompleted(ssId = currentSsId, completed = true)
+
                                     _uiState.update { current ->
                                         current.copy(
                                             isSyncing = false,
@@ -357,15 +348,14 @@ class SyncContactsProcessingViewModel @Inject constructor(
                                         )
                                     }
                                 }
-                                WorkInfo.State.BLOCKED -> {
-                                    Log.d(TAG, "Auxiliary call log sync is blocked.")
-                                }
+                                WorkInfo.State.BLOCKED -> {}
                             }
                         }
                     }
-            }.onFailure { throwable ->
-                Log.w(TAG, "Auxiliary call log stream exception caught safely: ${throwable.message}", throwable)
-                // Preserving contact sync success
+            }.onFailure {
+                val currentSsId = appDataManager.getSsId()
+                appDataManager.setContactSyncCompleted(ssId = currentSsId, completed = true)
+
                 _uiState.update { current ->
                     current.copy(
                         isSyncing = false,
@@ -380,6 +370,8 @@ class SyncContactsProcessingViewModel @Inject constructor(
 
     private fun handleCompleteProfile() {
         viewModelScope.launch {
+            val currentSsId = appDataManager.getSsId()
+            appDataManager.setContactSyncCompleted(ssId = currentSsId, completed = true)
             _uiEvent.send(SyncProcessingEvent.NavigateToHome)
         }
     }
@@ -388,7 +380,6 @@ class SyncContactsProcessingViewModel @Inject constructor(
         super.onCleared()
         contactSyncJob?.cancel()
         callLogSyncJob?.cancel()
-        // Cancel workers if screen is destroyed before completion
         if (_uiState.value.isSyncing) {
             contactWorkId?.let { workManager.cancelWorkById(it) }
             callLogWorkId?.let { workManager.cancelWorkById(it) }

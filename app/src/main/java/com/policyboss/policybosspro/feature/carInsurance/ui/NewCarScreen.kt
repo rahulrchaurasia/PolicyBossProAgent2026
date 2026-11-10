@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +45,7 @@ import com.policyboss.policybosspro.feature.carInsurance.component.VahanDataBann
 import com.policyboss.policybosspro.feature.carInsurance.model.DatePickerType
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
+import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton
 import com.policyboss.policybosspro.ui.components.datePicker.AppDatePickerDialog
 import com.policyboss.policybosspro.ui.components.dropDown.GenericM3Dropdown
@@ -73,13 +72,10 @@ fun NewCarScreen(
                     .padding(top = statusBarPadding)
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                IconButton(onClick = { onAction(NewCarAction.OnBackClick) }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = AppColors.TextPrimary
-                    )
-                }
+                AppBackButton(
+                    onClick = { onAction(NewCarAction.OnBackClick) },
+                    tint = AppColors.TextPrimary
+                )
 
                 Text(
                     text = "New Car",

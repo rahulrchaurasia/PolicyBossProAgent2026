@@ -30,11 +30,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".feature.syncContact.ui.welcome.WelcomeSyncContactActivityKotlin"
-            android:exported="false"
-            android:theme="@style/Theme.PolicyBossPro" />
-
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"

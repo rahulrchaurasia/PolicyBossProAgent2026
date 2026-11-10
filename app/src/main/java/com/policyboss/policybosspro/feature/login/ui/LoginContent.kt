@@ -41,6 +41,9 @@ import com.policyboss.policybosspro.ui.components.textfield.AppOutlinedTextField
 import com.policyboss.policybosspro.ui.theme.textPrimary
 import com.policyboss.policybosspro.ui.theme.textSecondary
 
+
+
+
 @Composable
 fun LoginContent(
     uiState: LoginUiState,
@@ -106,10 +109,10 @@ fun LoginContent(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Single input field for all 4 identifiers without mandatory +91 prefix
+                // Flexible input field allowing unconstrained typing for all identifier types
                 AppOutlinedTextField(
                     value = uiState.loginId,
-                    onValueChange = onLoginIdChange,
+                    onValueChange = onLoginIdChange, // Updates state locally without triggering network/heavy validation
                     placeholder = "Enter your input",
                     keyboardType = KeyboardType.Text,
                     enabled = !uiState.isLoading,
@@ -122,9 +125,9 @@ fun LoginContent(
                     keyboardActions = KeyboardActions(
                         onDone = {
                             keyboardController?.hide()
-                            if (!uiState.isLoading) {
-                                onSendOtpClick()
-                            }
+//                            if (!uiState.isLoading) {
+//                                onSendOtpClick()
+//                            }
                         }
                     ),
                     leadingContent = null
@@ -183,13 +186,11 @@ fun LoginContent(
             iconRes = R.drawable.ic_login
         )
 
-        // Loading overlay when API calls are in progress
         if (uiState.isLoading) {
             CustomAppLoader(showBackground = true)
         }
     }
 }
-
 /**
  * Backward-compatible overload for callers still using onMobileChange parameter.
  */

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.theme.AppColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,13 +81,10 @@ fun CommonWebViewScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = AppColors.TextPrimary
-                            )
-                        }
+                        AppBackButton(
+                            onClick = onNavigateBack,
+                            tint = AppColors.TextPrimary
+                        )
                     },
                     actions = {
                         IconButton(onClick = { webViewRef?.reload() }) {

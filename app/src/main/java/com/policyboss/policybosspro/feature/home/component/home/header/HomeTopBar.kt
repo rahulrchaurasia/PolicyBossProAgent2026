@@ -101,11 +101,11 @@ fun HomeTopBar(
             )
 
             // Language / Translation Icon
-            TopBarIconButton(
-                iconRes = R.drawable.ic_translate,
-                contentDescription = "Language",
-                onClick = onLanguageClick
-            )
+//            TopBarIconButton(
+//                iconRes = R.drawable.ic_translate,
+//                contentDescription = "Language",
+//                onClick = onLanguageClick
+//            )
 
             // Menu Hamburger Icon
             TopBarIconButton(

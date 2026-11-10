@@ -54,7 +54,8 @@ class MainActivity : ComponentActivity() {
                         AppRoot(
                             navController = navController,
                             startDestination = startDestination,
-                            initialDestinationOverride = destinationOverride
+                            initialDestinationOverride = destinationOverride,
+                            authStartDestination = uiState.authStartDestination
                         )
                     }
                 }

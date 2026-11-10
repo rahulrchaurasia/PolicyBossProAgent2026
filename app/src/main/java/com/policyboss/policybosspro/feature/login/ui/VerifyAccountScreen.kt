@@ -5,7 +5,7 @@ package com.policyboss.policybosspro.feature.login.ui
 
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
-import com.policyboss.policybosspro.feature.syncContact.ui.welcome.WelcomeSyncContactActivityKotlin
+import com.policyboss.policybosspro.navigation.Dest
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 
@@ -119,6 +119,15 @@ fun VerifyAccountScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    androidx.compose.runtime.LaunchedEffect(mobileNumber, loginInput, ssId, fullName) {
+        viewModel.initVerifySession(
+            mobile = mobileNumber,
+            loginInput = loginInput,
+            ssId = ssId,
+            fullName = fullName
+        )
+    }
+
     // =====================================
     // OBSERVE EVENTS
     // =====================================
@@ -134,11 +143,16 @@ fun VerifyAccountScreen(
                 navigator.navigateToLoginAndClear()
             }
 
-            is VerifyOtpEvent.NavigateToHome -> {
-                val intent = Intent(context, WelcomeSyncContactActivityKotlin::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            is VerifyOtpEvent.NavigateToWelcomeSyncContact -> {
+                navigator.navigateTo(Dest.WelcomeSyncContact) {
+                    popUpTo<Dest.Login> {
+                        inclusive = true
+                    }
                 }
-                context.startActivity(intent)
+            }
+
+            is VerifyOtpEvent.NavigateToHome -> {
+                navigator.navigateToHome()
             }
         }
     }

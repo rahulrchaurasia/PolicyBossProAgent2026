@@ -17,7 +17,7 @@ interface LoginRepository {
      */
     suspend fun otpVerifyHorizon(
         otp: String,
-        loginInput: String
+        mobileNumber: String
     ): Flow<Response<OtpVerifyResponse>>
 
     /**

@@ -7,7 +7,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -24,6 +23,7 @@ import com.policyboss.policybosspro.feature.lead.model.LeadUiState
 import com.policyboss.policybosspro.feature.lead.ui.components.AddRelationshipDialog
 import com.policyboss.policybosspro.feature.lead.ui.components.EditDetailsDialog
 import com.policyboss.policybosspro.feature.lead.ui.components.MarkLeadLostDialog
+import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.theme.AppColors
 
 import androidx.compose.runtime.*
@@ -45,9 +45,10 @@ fun LeadDetailsScreen(
             TopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppColors.TextPrimary)
-                    }
+                    AppBackButton(
+                        onClick = onBack,
+                        tint = AppColors.TextPrimary
+                    )
                 },
                 actions = {
                     Box {

@@ -11,13 +11,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.policyboss.policybosspro.feature.home.component.home.bottomsheet.RenewPolicyBottomSheet
 import com.policyboss.policybosspro.feature.home.component.home.bottomsheet.SyncIncentiveBottomSheet
 import com.policyboss.policybosspro.feature.home.model.home.RenewalOption
 import com.policyboss.policybosspro.feature.home.model.homeState.HomeAction
 import com.policyboss.policybosspro.feature.home.model.homeState.HomeUiEvent
+import com.policyboss.policybosspro.feature.home.viemodel.HomeViewModel
 
 @Composable
 fun HomeRoute(
@@ -34,12 +34,6 @@ fun HomeRoute(
     val context = LocalContext.current
     val snackbarHostState = com.policyboss.policybosspro.ui.components.snackBar.LocalAppSnackbar.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    // Trigger brief shimmer feedback whenever the Home tab is selected or resumed
-    LifecycleResumeEffect(Unit) {
-        viewModel.onHomeTabSelected()
-        onPauseOrDispose { }
-    }
 
     LaunchedEffect(viewModel.uiEvent) {
         viewModel.uiEvent.collect { event ->

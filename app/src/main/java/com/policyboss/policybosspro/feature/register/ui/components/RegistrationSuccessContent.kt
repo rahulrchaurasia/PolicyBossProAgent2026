@@ -37,6 +37,7 @@ import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.policyboss.policybosspro.R
 import com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton
+import com.policyboss.policybosspro.ui.components.animation.AppLottieAnimation
 import com.policyboss.policybosspro.ui.theme.AppColors
 import com.policyboss.policybosspro.ui.theme.PolicyBossTheme
 import com.policyboss.policybosspro.ui.theme.textPrimary
@@ -54,16 +55,6 @@ fun RegistrationSuccessContent(
     modifier: Modifier = Modifier,
     onContinueClick: (() -> Unit)? = null
 ) {
-    val composition by rememberLottieComposition(
-        spec = LottieCompositionSpec.RawRes(R.raw.registration_success)
-    )
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        isPlaying = true,
-        restartOnPlay = true,
-        iterations = 1
-    )
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -86,10 +77,13 @@ fun RegistrationSuccessContent(
                     .background(AppColors.SuccessContainerLight),
                 contentAlignment = Alignment.Center
             ) {
-                LottieAnimation(
-                    composition = composition,
-                    progress = { progress },
-                    modifier = Modifier.size(110.dp)
+                AppLottieAnimation(
+                    rawResId = R.raw.registration_success,
+                    modifier = Modifier.size(110.dp),
+                    iterations = 1,
+                    speed = 1.0f,
+                    isPlaying = true,
+                    restartOnPlay = true
                 )
             }
 

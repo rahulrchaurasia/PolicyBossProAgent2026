@@ -117,10 +117,13 @@ sealed class Dest {
     //endregion
 
     @Serializable
+    data object WelcomeSyncContact : Dest()
+
+    @Serializable
     data object SyncContact : Dest() // Formerly EmailPan
 
     @Serializable
-    object SyncContactProcess : Dest()
+    data object SyncContactProcess : Dest()
     //endregion
 
 

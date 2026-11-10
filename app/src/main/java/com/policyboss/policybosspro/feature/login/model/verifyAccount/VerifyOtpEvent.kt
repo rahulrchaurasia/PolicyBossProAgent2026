@@ -5,6 +5,9 @@ sealed interface VerifyOtpEvent {
     data object NavigateToHome :
         VerifyOtpEvent
 
+    data object NavigateToWelcomeSyncContact :
+        VerifyOtpEvent
+
     data object NavigateToLogin :
         VerifyOtpEvent
 

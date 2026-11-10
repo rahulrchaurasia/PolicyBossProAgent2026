@@ -27,7 +27,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.theme.AppColors
+
+
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.wrapContentSize
+
+import androidx.compose.ui.draw.clipToBounds
+
 
 @Composable
 fun ProfileHeader(
@@ -36,16 +45,22 @@ fun ProfileHeader(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+
+    val patternScale = 1.1f        // bigger = rings reach further left, and lines are spaced wider
+    val centerX = 300.dp           // ring center X in the header (smaller = pattern moves left)
+    val centerY = (-230).dp         // ring center Y (negative = above the header)
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(230.dp)
     ) {
-        // Blue Gradient Background with pattern
+        // Blue Gradient Background with pattern offset to top-right
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(150.dp)
+                .clipToBounds() // Important: cuts off the part of the pattern outside the header
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
@@ -55,28 +70,44 @@ fun ProfileHeader(
                     )
                 )
         ) {
+//            Image(
+//                painter = painterResource(id = R.drawable.bg_pattern),
+//                contentDescription = null,
+//                contentScale = ContentScale.FillBounds,
+//                alpha = 0.35f,
+//                modifier = Modifier
+//                    // Let the 375x812 drawable be bigger than the header
+//                    .wrapContentSize(align = Alignment.TopStart, unbounded = true)
+//                    .size(width = 375.dp, height = 812.dp)
+//                    // Ring center is at (196, 418) inside the drawable.
+//                    // This moves it to roughly (x = 440dp, y = -40dp): top-right, outside the header
+//                    .offset(x = 244.dp, y = (-458).dp)
+//            )
+
             Image(
                 painter = painterResource(id = R.drawable.bg_pattern),
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                alpha = 0.35f
+                contentScale = ContentScale.FillBounds,
+                alpha = 0.5f,
+                modifier = Modifier
+                    .wrapContentSize(align = Alignment.TopStart, unbounded = true)
+                    .size(width = 375.dp * patternScale, height = 812.dp * patternScale)
+                    // ring center in the drawable is (196, 418) -> move it to (centerX, centerY)
+                    .offset(
+                        x = centerX - 196.dp * patternScale,
+                        y = centerY - 418.dp * patternScale
+                    )
             )
 
             // Back Button
-            IconButton(
+            AppBackButton(
                 onClick = onBackClick,
+                tint = AppColors.White,
                 modifier = Modifier
                     .statusBarsPadding()
                     .padding(start = 4.dp, top = 4.dp)
                     .align(Alignment.TopStart)
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_chevron_left),
-                    contentDescription = "Back",
-                    tint = AppColors.White
-                )
-            }
+            )
         }
 
         // White curved sheet overlapping the bottom of the blue header
@@ -114,6 +145,8 @@ fun ProfileHeader(
         )
     }
 }
+
+
 
 @Preview(showBackground = true)
 @Composable

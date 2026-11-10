@@ -257,8 +257,11 @@ class RegisterViewModel @Inject constructor(
             appDataManager.saveUserSession(
                 name = state.fullName.trim(),
                 mobile = state.mobile.trim(),
-                email = state.email.trim()
+                email = state.email.trim(),
+                fbaId = dummyFbaId,
+                ssId = dummyFbaId
             )
+            appDataManager.saveLoginState(true)
 
             _uiState.update {
                 it.copy(
@@ -329,8 +332,10 @@ class RegisterViewModel @Inject constructor(
                         name = state.fullName.trim(),
                         mobile = state.mobile.trim(),
                         email = state.email.trim(),
-                        fbaId = fbaId.takeIf { it.isNotBlank() }
+                        fbaId = fbaId.takeIf { it.isNotBlank() },
+                        ssId = fbaId.takeIf { it.isNotBlank() }
                     )
+                    appDataManager.saveLoginState(true)
 
                     _uiState.update {
                         it.copy(

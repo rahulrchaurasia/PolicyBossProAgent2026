@@ -99,7 +99,7 @@ class MenuFeatureTest {
         var logoutCallCount = 0
         val fakeRepo = object : LoginRepository {
             override suspend fun initiateLogin(loginId: String): Result<OtpUserMsg> = Result.failure(Exception())
-            override suspend fun otpVerifyHorizon(otp: String, loginInput: String): Flow<Response<OtpVerifyResponse>> = emptyFlow()
+            override suspend fun otpVerifyHorizon(otp: String, mobileNumber: String): Flow<Response<OtpVerifyResponse>> = emptyFlow()
             override suspend fun getLoginDetailHorizon(ssId: String): Result<Boolean> = Result.success(true)
             override suspend fun logout(): Result<Unit> {
                 logoutCallCount++
@@ -116,7 +116,7 @@ class MenuFeatureTest {
     fun testLogoutExecution_failureFlow() = runBlocking {
         val fakeRepo = object : LoginRepository {
             override suspend fun initiateLogin(loginId: String): Result<OtpUserMsg> = Result.failure(Exception())
-            override suspend fun otpVerifyHorizon(otp: String, loginInput: String): Flow<Response<OtpVerifyResponse>> = emptyFlow()
+            override suspend fun otpVerifyHorizon(otp: String, mobileNumber: String): Flow<Response<OtpVerifyResponse>> = emptyFlow()
             override suspend fun getLoginDetailHorizon(ssId: String): Result<Boolean> = Result.success(true)
             override suspend fun logout(): Result<Unit> {
                 return Result.failure(Exception("Disk write failure during logout"))

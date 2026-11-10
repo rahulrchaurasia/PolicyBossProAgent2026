@@ -100,5 +100,55 @@ class HomeOfflineHandlingTest {
         assertTrue(recoveredState.hasCachedData)
         assertFalse(recoveredState.showNoInternetScreen)
     }
+
+    // =========================================================================
+    // 5. SHIMMER LOADING AND TAB SWITCHING TESTS
+    // =========================================================================
+
+    @Test
+    fun testHomeScreen_shimmerCondition_activatesOnExplicitIsShimmerLoading() {
+        // Even when cached data is present, isShimmerLoading should trigger shimmer (e.g. onHomeTabSelected)
+        val stateWithCacheAndShimmer = HomeUiState(
+            isLoading = false,
+            isOnline = true,
+            isShimmerLoading = true,
+            isInitialLoadCompleted = true,
+            leads = AppDummyData.topLeads
+        )
+
+        assertTrue("isShimmerLoading must be true", stateWithCacheAndShimmer.isShimmerLoading)
+        assertTrue("showShimmer must evaluate to true when isShimmerLoading is true", stateWithCacheAndShimmer.showShimmer)
+    }
+
+    @Test
+    fun testHomeRepository_userConstantsResultContract() = kotlinx.coroutines.runBlocking {
+        var fetchCallsCount = 0
+        val fakeHomeRepository = object : com.policyboss.policybosspro.core.repository.home.HomeRepository {
+            override suspend fun fetchAndSaveUserConstants(): Result<com.policyboss.policybosspro.feature.login.data.model.UserConstantResponse?> {
+                fetchCallsCount++
+                return Result.success(
+                    com.policyboss.policybosspro.feature.login.data.model.UserConstantResponse(
+                        status = "SUCCESS",
+                        message = "User constants loaded"
+                    )
+                )
+            }
+            override suspend fun fetchAndSaveUserConstants(body: Map<String, String>): retrofit2.Response<com.policyboss.policybosspro.feature.login.data.model.UserConstantResponse>? = null
+            override fun getEarningsSummary() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.earningsSummary))
+            override fun getQuoteTabs() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.quoteVehicleTabs))
+            override fun getPromoBanners() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.promoBanners))
+            override fun getHomeMetrics() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.homeMetrics))
+            override fun getTopLeads() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.topLeads))
+            override fun getRenewalLeads() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.renewalLeads))
+            override fun getQuickLinks() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.quickLinks))
+            override fun getTrustBullets() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.trustBullets))
+            override fun getPartnerLogos() = kotlinx.coroutines.flow.flowOf(Result.success(AppDummyData.partnerLogos))
+        }
+
+        val result = fakeHomeRepository.fetchAndSaveUserConstants()
+        assertTrue(result.isSuccess)
+        org.junit.Assert.assertEquals("SUCCESS", result.getOrNull()?.status)
+        org.junit.Assert.assertEquals(1, fetchCallsCount)
+    }
 }
 

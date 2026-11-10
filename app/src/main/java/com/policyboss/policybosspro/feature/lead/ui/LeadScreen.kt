@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.feature.home.component.home.item.LeadCardItem
 import com.policyboss.policybosspro.feature.lead.model.LeadAction
 import com.policyboss.policybosspro.feature.lead.model.LeadUiState
+import com.policyboss.policybosspro.ui.components.offline.NoInternetContent
+import com.policyboss.policybosspro.ui.components.offline.OfflineBanner
 import com.policyboss.policybosspro.ui.theme.AppColors
 
 @Composable
@@ -36,7 +38,7 @@ fun LeadScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp)
 ) {
     if (uiState.showNoInternetScreen) {
-        com.policyboss.policybosspro.ui.components.offline.NoInternetContent(
+        NoInternetContent(
             onRetry = { onAction(LeadAction.OnRetryClick) },
             modifier = modifier
                 .fillMaxSize()
@@ -53,7 +55,7 @@ fun LeadScreen(
     ) {
         // Non-blocking offline indicator when cached leads are available without internet
         if (!uiState.isOnline && uiState.hasCachedData) {
-            com.policyboss.policybosspro.ui.components.offline.OfflineBanner(
+            OfflineBanner(
                 message = "You're offline. Displaying saved leads.",
                 onRetry = { onAction(LeadAction.OnRetryClick) },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)

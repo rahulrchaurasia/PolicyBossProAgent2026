@@ -13,6 +13,7 @@ import com.policyboss.policybosspro.feature.syncContact.ui.SyncProcessingRoute
 import com.policyboss.policybosspro.navigation.AppNavigator
 import com.policyboss.policybosspro.navigation.Dest
 import androidx.navigation.toRoute
+import com.policyboss.policybosspro.feature.profile.ui.ProfileRoute
 
 
 /*
@@ -170,8 +171,10 @@ fun NavGraphBuilder.homeGraph(
             exitTransition = { NavigationAnimations.slideOutTop },
             popEnterTransition = { NavigationAnimations.slideInTop },
             popExitTransition = { NavigationAnimations.slideOutBottom }
+
+
         ) {
-            com.policyboss.policybosspro.feature.profile.ui.ProfileRoute(
+            ProfileRoute(
                 onNavigateBack = {
                     appNavigator.navigateBack()
                 },

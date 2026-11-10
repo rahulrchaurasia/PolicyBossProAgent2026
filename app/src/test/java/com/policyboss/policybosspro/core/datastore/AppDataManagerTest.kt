@@ -123,5 +123,38 @@ class AppDataManagerTest {
         // Support number preserved
         assertEquals("1800123456", appDataManager.getSupportNumber())
     }
+
+    @Test
+    fun testContactSyncCompleted_accountSpecific() = runBlocking {
+        // Blank or zero returns false
+        assertFalse(appDataManager.isContactSyncCompleted(""))
+        assertFalse(appDataManager.isContactSyncCompleted("0"))
+
+        // Account A default is false
+        assertFalse(appDataManager.isContactSyncCompleted("150252"))
+
+        // Set Account A to true
+        appDataManager.setContactSyncCompleted("150252", true)
+        assertTrue(appDataManager.isContactSyncCompleted("150252"))
+
+        // Account B remains false (isolated per ssId)
+        assertFalse(appDataManager.isContactSyncCompleted("999999"))
+    }
+
+    @Test
+    fun testClearUserSession_clearsContactSyncCompleted() = runBlocking {
+        // Mark contact sync complete for Account A and Account B
+        appDataManager.setContactSyncCompleted("150252", true)
+        appDataManager.setContactSyncCompleted("999999", true)
+        assertTrue(appDataManager.isContactSyncCompleted("150252"))
+        assertTrue(appDataManager.isContactSyncCompleted("999999"))
+
+        // When user logs out and session is cleared
+        appDataManager.clearUserSession()
+
+        // Sync completion flags must be completely reset so fresh login triggers mandatory flow
+        assertFalse(appDataManager.isContactSyncCompleted("150252"))
+        assertFalse(appDataManager.isContactSyncCompleted("999999"))
+    }
 }
 

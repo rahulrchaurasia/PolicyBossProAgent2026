@@ -26,8 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +56,7 @@ import com.policyboss.policybosspro.feature.register.model.RegisterEvent
 import com.policyboss.policybosspro.feature.register.model.RegisterUiState
 import com.policyboss.policybosspro.feature.register.ui.components.AppStoreBadges
 import com.policyboss.policybosspro.ui.ObserveAsEvents
+import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton
 import com.policyboss.policybosspro.ui.components.radio.AppRadioButtonOption
 import com.policyboss.policybosspro.ui.components.textfield.AppOutlinedTextField
@@ -197,13 +196,11 @@ fun RegisterContent(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back to Login",
-                    tint = Color.White
-                )
-            }
+            AppBackButton(
+                onClick = onBackClick,
+                tint = Color.White,
+                contentDescription = "Back to Login"
+            )
         }
 
         // =========================================================

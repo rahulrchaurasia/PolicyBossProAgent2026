@@ -63,6 +63,8 @@ import com.policyboss.policybosspro.feature.home.model.home.HomeLead
 import com.policyboss.policybosspro.feature.home.model.home.PromoBanner
 import com.policyboss.policybosspro.feature.home.model.homeState.HomeAction
 import com.policyboss.policybosspro.feature.home.model.homeState.HomeUiState
+import com.policyboss.policybosspro.ui.components.offline.OfflineBanner
+import com.policyboss.policybosspro.ui.components.offline.NoInternetContent
 import com.policyboss.policybosspro.ui.theme.AppColors
 import com.policyboss.policybosspro.ui.theme.gradients.AppGradients
 
@@ -75,7 +77,7 @@ fun HomeScreen(
 ) {
     // 0a. Show full-screen No Internet state if offline with no cached data
     if (uiState.showNoInternetScreen) {
-        com.policyboss.policybosspro.ui.components.offline.NoInternetContent(
+        NoInternetContent(
             onRetry = { onAction(HomeAction.OnRetryClick) },
             modifier = modifier
                 .fillMaxSize()
@@ -85,7 +87,7 @@ fun HomeScreen(
     }
 
     // 0b. Show full-screen shimmer skeleton loader during initial or post-login data loading
-    if (uiState.showShimmer) {
+    if (uiState.isShimmerLoading || uiState.showShimmer) {
         HomeLoaderScreen(
             modifier = modifier,
             contentPadding = contentPadding
@@ -200,7 +202,7 @@ fun HomeScreen(
             // Non-blocking offline indicator when cached data is available without internet
             if (!uiState.isOnline && uiState.hasCachedData) {
                 item(key = "home_offline_banner") {
-                    com.policyboss.policybosspro.ui.components.offline.OfflineBanner(
+                    OfflineBanner(
                         message = "You're offline. Displaying saved data.",
                         onRetry = { onAction(HomeAction.OnRetryClick) }
                     )

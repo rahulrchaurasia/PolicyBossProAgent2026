@@ -1,6 +1,7 @@
 package com.policyboss.policybosspro.feature.syncContact
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.policyboss.policybosspro.core.constant.SyncContactUrls
 import com.policyboss.policybosspro.core.datastore.AppDataManager
 import com.policyboss.policybosspro.core.repository.syncContact.SyncContactRepository
 import com.policyboss.policybosspro.feature.syncContact.data.model.SaveCheckboxRequestEntity
@@ -444,6 +445,22 @@ class WelcomeSyncContactFeatureTest {
         assertTrue(viewModel.uiState.value.isSmsChecked)
         assertFalse(viewModel.uiState.value.isCallChecked)
         assertTrue(viewModel.uiState.value.isAgreeChecked)
+    }
+
+    @Test
+    fun testSyncContactUrls_constantsMatchExpectedEndpoints() {
+        assertEquals(
+            "https://www.policyboss.com/sync-contacts-info",
+            SyncContactUrls.SYNC_CONTACTS_INFO
+        )
+        assertEquals(
+            "https://www.policyboss.com/terms-condition",
+            SyncContactUrls.TERMS_AND_CONDITIONS
+        )
+        assertEquals(
+            "https://www.policyboss.com/privacy-policy-policyboss-pro",
+            SyncContactUrls.PRIVACY_POLICY
+        )
     }
 }
 

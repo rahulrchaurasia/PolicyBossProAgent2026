@@ -7,7 +7,6 @@ import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.policyboss.policybosspro.feature.syncContact.ui.welcome.WelcomeSyncContactActivityKotlin
 
 // ✅ Note: Centralized Navigation Logic - 100% Type-Safe version
 class AppNavigator( val navController: NavController) {
@@ -91,9 +90,9 @@ class AppNavigator( val navController: NavController) {
     }
 
     fun navigateToHome() {
-        // ✅ Navigating to the Graph ID object
+        // Navigating to MainGraph, clearing entire auth/splash backstack so user lands on Home without backstack to onboarding
         navController.navigate(Dest.MainGraph) {
-            popUpTo<Dest.CustomSplash> { inclusive = true }
+            popUpTo(0) { inclusive = true }
         }
     }
 
@@ -101,14 +100,11 @@ class AppNavigator( val navController: NavController) {
     fun navigateToLogin() = navigateTo(Dest.Login)
     fun navigateToRegister() = navigateTo(Dest.Register)
 
+    fun navigateToWelcomeSyncContact() = navigateTo(Dest.WelcomeSyncContact)
+
+    @Deprecated("Migrated to Compose navigation. Use navigateToWelcomeSyncContact() without Context instead.")
     fun navigateToWelcomeSyncContact(context: android.content.Context) {
-        val intent = android.content.Intent(
-            context,
-            WelcomeSyncContactActivityKotlin::class.java
-        ).apply {
-            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        context.startActivity(intent)
+        navigateTo(Dest.WelcomeSyncContact)
     }
 
 

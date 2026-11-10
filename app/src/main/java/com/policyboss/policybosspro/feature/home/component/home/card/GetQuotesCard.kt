@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.policyboss.policybosspro.R
 import com.policyboss.policybosspro.feature.dummyData.AppDummyData
 import com.policyboss.policybosspro.feature.home.model.menu.QuoteTabItem
+import com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton
 import com.policyboss.policybosspro.ui.components.text.TextWithChevron
 import com.policyboss.policybosspro.ui.theme.AppColors
 import com.policyboss.policybosspro.ui.theme.badgeMicro
@@ -160,7 +161,7 @@ fun GetQuotesCard(
             )
 
             // Get Quotes Button
-            com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton(
+            PrimaryCTAButton(
                 text = "Get quotes",
                 onClick = onGetQuoteClick,
                 containerColor = AppColors.PrimaryBlue,

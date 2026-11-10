@@ -13,6 +13,7 @@ import com.policyboss.policybosspro.feature.login.viewmodel.LoginViewModel
 import com.policyboss.policybosspro.feature.register.ui.RegisterScreen
 import com.policyboss.policybosspro.feature.syncContact.ui.SyncContactsRoute
 import com.policyboss.policybosspro.feature.syncContact.ui.SyncProcessingRoute
+import com.policyboss.policybosspro.feature.syncContact.ui.welcome.WelcomeSyncContactRoute
 
 import com.policyboss.policybosspro.feature.onboarding.ui.OnboardingPagerScreen
 import com.policyboss.policybosspro.navigation.AppNavigator
@@ -36,11 +37,11 @@ kotlinMainApp -> Manual tab switching with selectedIndex
 
 fun NavGraphBuilder.authGraph(
     navigator: AppNavigator,
-
+    startDestination: Any = Dest.Welcome
 ) {
 
-    navigation<Dest.AuthGraph>(   // ✅ THIS WAS MISSING
-        startDestination = Dest.Welcome
+    navigation<Dest.AuthGraph>(
+        startDestination = startDestination
     ) {
         // Welcome Screen
         composable<Dest.Welcome>(
@@ -111,16 +112,12 @@ fun NavGraphBuilder.authGraph(
                     navigator.navigateBack()
                 },
                 onRegistrationSuccess = { _ ->
-                    // Reset Login screen state so user returns to a clean initial login form
-                    runCatching {
-                        val loginEntry = navigator.navController.getBackStackEntry<Dest.Login>()
-                        ViewModelProvider(loginEntry)[LoginViewModel::class.java].resetLoginState()
+                    // Registration Flow: Login -> RegisterScreen -> WelcomeSyncScreen -> SyncContactsScreen -> SyncProcessingScreen -> Home
+                    navigator.navigateTo(Dest.WelcomeSyncContact) {
+                        popUpTo<Dest.Login> {
+                            inclusive = true
+                        }
                     }
-                    navigator.safePopBackToRoute(
-                        destination = Dest.Login,
-                        inclusive = false,
-                        fallback = { navigator.navigateToLogin() }
-                    )
                 }
             )
         }
@@ -149,6 +146,22 @@ fun NavGraphBuilder.authGraph(
                 loginInput = args.loginInput.ifBlank { args.mobileNumber },
 
                 ssId = args.ssId
+            )
+        }
+
+        composable<Dest.WelcomeSyncContact>(
+            enterTransition = { NavigationAnimations.slideInRight },
+            exitTransition = { NavigationAnimations.slideOutLeft },
+            popEnterTransition = { NavigationAnimations.slideInLeft },
+            popExitTransition = { NavigationAnimations.slideOutRight }
+        ) {
+            WelcomeSyncContactRoute(
+                onNavigateToMainSyncContact = {
+                    navigator.navigateTo(Dest.SyncContact)
+                },
+                onBackClick = {
+                    navigator.navigateBack()
+                }
             )
         }
 

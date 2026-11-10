@@ -89,7 +89,8 @@ Whenever a screen needs a new capability from NavController,
 fun AppRoot(
     navController: NavHostController,
     startDestination: Dest,
-    initialDestinationOverride: String? = null
+    initialDestinationOverride: String? = null,
+    authStartDestination: Dest = Dest.Welcome
 ) {
     val appNavigator = remember(navController) { AppNavigator(navController) }
 
@@ -247,7 +248,10 @@ fun AppRoot(
                     )
                 }
 
-                authGraph(appNavigator)
+                authGraph(
+                    navigator = appNavigator,
+                    startDestination = authStartDestination
+                )
 
                 mainGraph(
                     // navController = navController,

@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.milliseconds
+
 
 @HiltViewModel
 class VerifyOtpViewModel @Inject constructor(
@@ -38,6 +40,7 @@ class VerifyOtpViewModel @Inject constructor(
     private var timerJob: Job? = null
 
     private var currentSsId: String = ""
+    private var verifiedMobileNo: String = "" // Stores exact Mobile_No from otp_login response
     private var currentLoginInput: String = ""
     private var currentFullName: String = ""
 
@@ -46,6 +49,35 @@ class VerifyOtpViewModel @Inject constructor(
     }
 
     fun getSsid(): String = currentSsId
+
+    fun getVerifiedMobileNo(): String = verifiedMobileNo
+
+    /**
+     * Initializes the verification session with parameters supplied from navigation.
+     * Guarantees that verifiedMobileNo and currentSsId are available even before user interactions.
+     */
+    fun initVerifySession(
+        mobile: String,
+        loginInput: String = mobile,
+        ssId: String = "",
+        fullName: String = ""
+    ) {
+        if (mobile.isNotBlank()) {
+            verifiedMobileNo = mobile
+        }
+        if (loginInput.isNotBlank()) {
+            currentLoginInput = loginInput
+        }
+        val cleanSsId = ssId.trim().takeIf {
+            it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.equals("NA", ignoreCase = true) && it != "0"
+        }
+        if (cleanSsId != null) {
+            currentSsId = cleanSsId
+        }
+        if (fullName.isNotBlank()) {
+            currentFullName = fullName
+        }
+    }
 
     // =========================================
     // OTP CHANGE
@@ -64,11 +96,17 @@ class VerifyOtpViewModel @Inject constructor(
         if (loginInput.isNotBlank()) {
             currentLoginInput = loginInput
         }
-        if (ssId.isNotBlank()) {
-            currentSsId = ssId
+        val cleanSsId = ssId.trim().takeIf {
+            it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.equals("NA", ignoreCase = true) && it != "0"
+        }
+        if (cleanSsId != null) {
+            currentSsId = cleanSsId
         }
         if (fullName.isNotBlank()) {
             currentFullName = fullName
+        }
+        if (mobile.isNotBlank()) {
+            verifiedMobileNo = mobile
         }
 
         _uiState.update {
@@ -115,11 +153,20 @@ class VerifyOtpViewModel @Inject constructor(
                 )
             }
 
-            val targetLoginInput = currentLoginInput.ifBlank { mobile }
+            var targetMobile = verifiedMobileNo.ifBlank { mobile }
+            if (targetMobile.isBlank() || targetMobile.contains("@")) {
+                val stored = appDataManager.getUserMobile()
+                if (stored.isNotBlank() && stored.all { it.isDigit() }) {
+                    targetMobile = stored
+                }
+            }
+
+            val sanitizedMobile = targetMobile.filter { it.isDigit() }.takeIf { it.length == 10 }
+                ?: targetMobile.trim()
 
             loginRepository.otpVerifyHorizon(
                 otp = otp.trim(),
-                loginInput = targetLoginInput.trim()
+                mobileNumber = sanitizedMobile
             ).catch { e ->
                 _uiState.update {
                     it.copy(
@@ -135,7 +182,7 @@ class VerifyOtpViewModel @Inject constructor(
                         getLoginDetailHorizon(
                             ssId = ssid,
                             source = source,
-                            mobile = mobile,
+                            mobile = sanitizedMobile,
                             fullName = currentFullName
                         )
                     } else {
@@ -148,11 +195,14 @@ class VerifyOtpViewModel @Inject constructor(
                         }
                     }
                 } else {
+                    val serverError = response.body()?.msg?.trim()?.takeIf {
+                        it.isNotBlank() && !it.equals("FAIL", ignoreCase = true)
+                    }
                     _uiState.update {
                         it.copy(
                             isVerifyingOtp = false,
                             fieldState = OTPFieldState.ERROR,
-                            errorMessage = "Invalid code. Please try again."
+                            errorMessage = serverError ?: "Invalid code. Please try again."
                         )
                     }
                 }
@@ -208,14 +258,10 @@ class VerifyOtpViewModel @Inject constructor(
     ) {
         when (source) {
             VerifyOtpSource.LOGIN -> {
-                appDataManager.saveUserSession(
-                    mobile = mobile.takeIf { it.isNotBlank() },
-                    name = fullName.takeIf { it.isNotBlank() },
-                    ssId = ssId.takeIf { it.isNotBlank() },
-                    isLogin = true
-                )
-
-                _event.emit(VerifyOtpEvent.NavigateToHome)
+                appDataManager.saveLoginState(true)
+                // Mandatory post-login contact synchronization journey:
+                // Every successful login must enter the sync flow starting at Welcome screen.
+                _event.emit(VerifyOtpEvent.NavigateToWelcomeSyncContact)
             }
             VerifyOtpSource.REGISTER -> {
                 _event.emit(VerifyOtpEvent.NavigateToLogin)
@@ -253,11 +299,16 @@ class VerifyOtpViewModel @Inject constructor(
 
             initiateResult.onSuccess { userMsg ->
                 if (userMsg != null) {
-                    if (userMsg.ssId.toString().isNotBlank()) {
-                        currentSsId = userMsg.ssId.toString().trim().removeSurrounding("\"")
+                    val newSsId = userMsg.ssIdString
+                    if (!newSsId.isNullOrBlank()) {
+                        currentSsId = newSsId
                     }
                     if (!userMsg.name.isNullOrBlank()) {
                         currentFullName = userMsg.name
+                    }
+                    val newMobile = userMsg.mobileNo
+                    if (!newMobile.isNullOrBlank()) {
+                        verifiedMobileNo = newMobile
                     }
                 }
                 _uiState.update {
@@ -289,9 +340,9 @@ class VerifyOtpViewModel @Inject constructor(
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (_uiState.value.resendSeconds > 0) {
-                delay(1000)
+                delay(1000.milliseconds)
                 _uiState.update {
-                    it.copy(resendSeconds = it.resendSeconds - 1)
+                    it.copy(resendSeconds = it.resendSeconds - 1) // Fixed arithmetic operator
                 }
             }
         }

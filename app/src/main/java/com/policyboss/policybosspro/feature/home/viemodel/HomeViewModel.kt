@@ -1,7 +1,9 @@
-package com.policyboss.policybosspro.feature.home.ui_home
+package com.policyboss.policybosspro.feature.home.viemodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.policyboss.policybosspro.core.AppConfig
 import com.policyboss.policybosspro.core.datastore.AppDataManager
 import com.policyboss.policybosspro.core.network.ConnectivityObserver
 import com.policyboss.policybosspro.core.network.NetworkError
@@ -41,14 +43,15 @@ class HomeViewModel @Inject constructor(
     private val _uiEvent = Channel<HomeUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
 
-    private var shimmerJob: Job? = null
     private var homeDataJob: Job? = null
     private var previousConnectivity: Boolean? = null
+    private var hasFetchedUserConstantsThisSession = false
 
     init {
         observeUserData()
         observeNetworkConnectivity()
         loadHomeData()
+        fetchAndSaveUserConstantsOnce()
     }
 
     /**
@@ -72,6 +75,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun onNetworkRestored() {
+        if (homeDataJob?.isActive == true) return
         val state = _uiState.value
         if (state.isLoading) return
 
@@ -85,17 +89,18 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Triggered when the user taps or returns to the Home tab.
-     * Displays the shimmer placeholder/skeleton state for a short, controlled duration
-     * (e.g. 1500ms) without clearing or losing existing home data.
-     */
-    fun onHomeTabSelected(durationMillis: Long = 1500L) {
-        shimmerJob?.cancel()
-        shimmerJob = viewModelScope.launch {
-            _uiState.update { it.copy(isShimmerLoading = true) }
-            delay(durationMillis)
-            _uiState.update { it.copy(isShimmerLoading = false) }
+    private fun fetchAndSaveUserConstantsOnce() {
+        if (hasFetchedUserConstantsThisSession) return
+        hasFetchedUserConstantsThisSession = true
+
+        viewModelScope.launch {
+            homeRepository.fetchAndSaveUserConstants()
+                .onSuccess { response ->
+                    Log.d("HomeViewModel", "UserConstants fetched and synced successfully: ${response?.message}")
+                }
+                .onFailure { error ->
+                    Log.w("HomeViewModel", "UserConstants fetch failed: ${error.message}")
+                }
         }
     }
 
@@ -105,54 +110,57 @@ class HomeViewModel @Inject constructor(
 
     /**
      * Loads Home data with hybrid offline decision strategy:
-     * - If offline with no cache -> Full-screen No Internet state
-     * - If offline with cache -> Preserves cache and shows offline indicator
-     * - If online -> Loads data, deduplicates concurrent requests
+     * - Prevents duplicate overlapping requests using job activity tracking.
+     * - Preserves active jobs without blind cancellation.
      */
     fun loadHomeData(showShimmer: Boolean = true, isManualRetry: Boolean = false) {
-        if (_uiState.value.isLoading && !isManualRetry) return
+        // Prevent duplicate or overlapping requests using active job check
+        if (homeDataJob?.isActive == true) return
 
         val isOnline = connectivityObserver.isCurrentlyConnected()
         _uiState.update { it.copy(isOnline = isOnline) }
 
-        if (!com.policyboss.policybosspro.core.AppConfig.USE_DUMMY_DATA && !isOnline) {
-            if (!_uiState.value.hasCachedData) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isShimmerLoading = false,
-                        errorMessage = "No internet connection. Please check your network settings."
-                    )
-                }
-                if (isManualRetry) {
-                    sendEvent(HomeUiEvent.ShowSnackbar("No internet connection. Please check your network and try again."))
-                }
-                return
-            } else {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isShimmerLoading = false
-                    )
-                }
-                if (isManualRetry) {
-                    sendEvent(HomeUiEvent.ShowSnackbar("You're currently offline. Displaying cached data."))
-                }
-                return
+        if (!AppConfig.USE_DUMMY_DATA && !isOnline) {
+            val hasCachedData = _uiState.value.hasCachedData
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isShimmerLoading = false,
+                    errorMessage = if (!hasCachedData) {
+                        "No internet connection. Please check your network settings."
+                    } else {
+                        null
+                    }
+                )
             }
+            if (isManualRetry) {
+                sendEvent(
+                    HomeUiEvent.ShowSnackbar(
+                        if (hasCachedData) {
+                            "You're currently offline. Displaying cached data."
+                        } else {
+                            "No internet connection. Please check your network and try again."
+                        }
+                    )
+                )
+            }
+            return
         }
 
-        homeDataJob?.cancel()
         homeDataJob = viewModelScope.launch {
+            val isColdStart = !_uiState.value.hasCachedData
+
+            // 1. Force Shimmer ON immediately
             _uiState.update {
                 it.copy(
                     isLoading = true,
-                    isShimmerLoading = showShimmer && !it.hasCachedData,
+                    isShimmerLoading = showShimmer && isColdStart,
                     errorMessage = null
                 )
             }
 
             try {
+                // 2. Concurrently load repository items
                 supervisorScope {
                     launch {
                         homeRepository.getEarningsSummary().collect { res ->
@@ -209,11 +217,23 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                 }
+
+                // 3. ARTIFICIAL SAFETY DELAY: If using dummy data, guarantee shimmer is visible for 700ms 
+                // so the user actually sees the smooth loading skeleton per Figma guidelines!
+                if (AppConfig.USE_DUMMY_DATA && showShimmer && isColdStart) {
+                    delay(700)
+                }
+
                 _uiState.update { it.copy(isInitialLoadCompleted = true) }
             } catch (e: Exception) {
                 handleError(e)
             } finally {
-                _uiState.update { it.copy(isLoading = false, isShimmerLoading = false) }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isShimmerLoading = false
+                    )
+                }
             }
         }
     }

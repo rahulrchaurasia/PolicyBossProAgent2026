@@ -18,27 +18,19 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val loginRepository: LoginRepository,
     private val appDataManager: AppDataManager
 ) : ViewModel() {
 
-    // =====================================
-    // UI STATE
-    // =====================================
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState = _uiState.asStateFlow()
 
-    // =====================================
-    // EVENTS
-    // =====================================
     private val _event = MutableSharedFlow<LoginEvent>()
     val event = _event.asSharedFlow()
 
-    // =====================================
-    // IDENTIFIER CHANGE
-    // =====================================
     fun onLoginIdChange(value: String) {
         _uiState.update {
             it.copy(
@@ -49,20 +41,25 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    /** Backward-compatible alias for existing callers */
     fun onMobileChange(value: String) {
         onLoginIdChange(value)
     }
 
-    // =====================================
-    // SEND OTP (POST /postservicecall/otp_login)
-    // =====================================
     fun onSendOtpClick() {
         if (_uiState.value.isLoading) return
 
         val enteredIdentifier = _uiState.value.loginId.trim()
 
-        // 1. Validate Identifier (Mobile, Email, POSP No, ERP Code)
+        if (enteredIdentifier.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    isError = true,
+                    errorMessage = "Please enter your Mobile No., Email ID, POSP No., or ERP Code"
+                )
+            }
+            return
+        }
+
         when (val validationResult = LoginIdentifierValidator.validate(enteredIdentifier)) {
             is ValidationResult.Error -> {
                 _uiState.update {
@@ -79,11 +76,6 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    /** Backward-compatible alias for existing login action */
-    fun onLoginClick() {
-        onSendOtpClick()
-    }
-
     private fun executeLoginFlow(sanitizedId: String) {
         viewModelScope.launch {
             _uiState.update {
@@ -94,17 +86,24 @@ class LoginViewModel @Inject constructor(
                 )
             }
 
-            // Step 1: Initiate Login via POST /postservicecall/otp_login
             val loginResult = loginRepository.initiateLogin(sanitizedId)
 
             loginResult.onSuccess { userMsg ->
-                val fullName = userMsg.name.orEmpty()
-                val mobileReturned = userMsg.mobileNo?.takeIf { it.isNotBlank() }
-                    ?: (if (sanitizedId.all { it.isDigit() } && sanitizedId.length == 10) sanitizedId else "")
-                val ssId = userMsg.ssIdString.orEmpty()
-                val emailId = userMsg.emailId.orEmpty()
+                val fullName = (userMsg.effectiveName ?: userMsg.name).orEmpty()
 
-                // Retain session data in DataStore atomically
+                // CRITICAL EXTRACT: Always grab the canonical Mobile_No returned from otp_login response
+                val canonicalMobile = (userMsg.effectiveMobileNo ?: userMsg.mobileNo)?.trim().orEmpty()
+                val mobileReturned = if (canonicalMobile.isNotBlank()) {
+                    canonicalMobile
+                } else if (sanitizedId.all { it.isDigit() } && sanitizedId.length == 10) {
+                    sanitizedId
+                } else {
+                    ""
+                }
+
+                val ssId = userMsg.ssIdString.orEmpty()
+                val emailId = (userMsg.effectiveEmailId ?: userMsg.emailId).orEmpty()
+
                 appDataManager.saveUserSession(
                     name = fullName.takeIf { it.isNotBlank() },
                     mobile = mobileReturned.takeIf { it.isNotBlank() },
@@ -114,11 +113,10 @@ class LoginViewModel @Inject constructor(
 
                 _uiState.update { it.copy(isLoading = false) }
 
-                // Step 2: Navigate directly to VerifyAccountScreen with original login identifier and SS ID
                 _event.emit(
                     LoginEvent.NavigateToVerifyOtp(
                         fullName = fullName,
-                        mobileNumber = mobileReturned,
+                        mobileNumber = mobileReturned, // Passes canonical Mobile_No to Verify screen
                         loginInput = sanitizedId,
                         ssId = ssId,
                         emailId = emailId,
@@ -137,14 +135,6 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    // =====================================
-    // RESET LOGIN STATE
-    // =====================================
-    /**
-     * Resets the Login UI state to its initial blank state.
-     * Clears loginId, error flags, error messages, and loading state.
-     * Called when returning from a successful POSP registration.
-     */
     fun resetLoginState() {
         _uiState.value = LoginUiState()
     }
