@@ -24,6 +24,9 @@ class MenuFeatureTest {
 
     @Test
     fun testUserInitials_formatting() {
+        val threeWords = MenuUiState(userName = "Rahul Rajendra Chaurasia")
+        assertEquals("RC", threeWords.userInitials)
+
         val twoWords = MenuUiState(userName = "Rahul Chaurasia")
         assertEquals("RC", twoWords.userInitials)
 
@@ -31,10 +34,13 @@ class MenuFeatureTest {
         assertEquals("AL", singleWord.userInitials)
 
         val emptyUser = MenuUiState(userName = "")
-        assertEquals("DD", emptyUser.userInitials)
+        assertEquals("PB", emptyUser.userInitials)
 
         val defaultGuest = MenuUiState(userName = "Guest User")
-        assertEquals("DD", defaultGuest.userInitials)
+        assertEquals("PB", defaultGuest.userInitials)
+
+        val explicitInitials = MenuUiState(userName = "Guest User", initials = "AK")
+        assertEquals("AK", explicitInitials.userInitials)
     }
 
     @Test
@@ -50,9 +56,9 @@ class MenuFeatureTest {
         assertEquals("#1001", stateWithData.displayFbaId)
 
         val emptyState = MenuUiState()
-        assertEquals("Dinesh Das", emptyState.displayName)
-        assertEquals("#123456", emptyState.displaySsId)
-        assertEquals("#123456", emptyState.displayFbaId)
+        assertEquals("Guest User", emptyState.displayName)
+        assertEquals("NA", emptyState.displaySsId)
+        assertEquals("NA", emptyState.displayFbaId)
     }
 
     @Test
@@ -136,39 +142,47 @@ class MenuFeatureTest {
     fun testUserDataStoreKeys_isolatedCleanup() {
         // Mock preferences map representing user session and app settings
         val storedPreferences = mutableMapOf<String, Any>(
+            "key_raw_horizon_json" to "{}",
             "key_auth_token" to "token_abc123",
             "key_user_mobile" to "9773113793",
             "key_is_login" to true,
-            "key_user_name" to "Rahul Chaurasia",
+            "key_user_name" to "Rahul Rajendra Chaurasia",
+            "key_user_initials" to "RC",
             "key_user_email" to "rahul@policyboss.com",
             "key_user_ssid" to "150252",
             "key_user_fbaid" to "1001",
+            "key_user_erpid" to "ERP-456",
+            "key_user_type" to "POSP",
+            "key_user_designation" to "Senior POSP",
+            "key_user_address" to "Mumbai",
             "key_device_id" to "unique_device_uuid_456",
             "key_support_number" to "9224624999"
         )
 
         // Keys defined in AppDataManager for clearUserSession()
         val userScopedKeys = listOf(
+            "key_raw_horizon_json",
             "key_auth_token",
             "key_user_mobile",
             "key_is_login",
             "key_user_name",
+            "key_user_initials",
             "key_user_email",
             "key_user_ssid",
-            "key_user_fbaid"
+            "key_user_fbaid",
+            "key_user_erpid",
+            "key_user_type",
+            "key_user_designation",
+            "key_user_address"
         )
 
         // Execute clearUserSession contract
         userScopedKeys.forEach { storedPreferences.remove(it) }
 
         // Assert all user credentials & profile records are deleted
-        assertNull(storedPreferences["key_auth_token"])
-        assertNull(storedPreferences["key_user_mobile"])
-        assertNull(storedPreferences["key_is_login"])
-        assertNull(storedPreferences["key_user_name"])
-        assertNull(storedPreferences["key_user_email"])
-        assertNull(storedPreferences["key_user_ssid"])
-        assertNull(storedPreferences["key_user_fbaid"])
+        userScopedKeys.forEach { key ->
+            assertNull("Expected $key to be removed", storedPreferences[key])
+        }
 
         // Assert shared & device-scoped configurations are retained
         assertEquals("unique_device_uuid_456", storedPreferences["key_device_id"])

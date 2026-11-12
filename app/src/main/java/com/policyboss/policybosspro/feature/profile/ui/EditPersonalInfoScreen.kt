@@ -45,6 +45,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.feature.dummyData.AppDummyData
 import com.policyboss.policybosspro.feature.profile.model.PersonalInformation
 import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.theme.AppColors
@@ -346,7 +347,7 @@ private fun EditFormField(
 @Composable
 private fun EditPersonalInfoScreenPreview() {
     EditPersonalInfoScreen(
-        personalInfo = PersonalInformation(),
+        personalInfo = AppDummyData.defaultUserProfile.personalInfo,
         isSaving = false,
         onSaveClick = {},
         onBackClick = {}

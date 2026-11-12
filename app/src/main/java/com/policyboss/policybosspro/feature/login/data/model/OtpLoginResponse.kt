@@ -67,48 +67,66 @@ data class OtpUserMsg(
 
     /**
      * Safely extracts SS ID as a clean String.
-     * Prevents literal "null", "NA", or "0" string artifacts.
+     * Strictly accepts only non-null primitive values and filters out
+     * dirty literals ("NA", "N/A", "null", "undefined", "0", blank) as well as
+     * non-primitive JSON structures (arrays/objects).
      */
     val ssIdString: String?
         get() {
-            val targetElement = effectiveSsIdElement ?: return null
-            return when (targetElement) {
-                is JsonNull -> null
-                is JsonPrimitive -> {
-                    val content = targetElement.content.trim().removeSurrounding("\"")
-                    if (content.equals("null", ignoreCase = true) ||
-                        content.equals("NA", ignoreCase = true) ||
-                        content == "0" ||
-                        content.isBlank()
-                    ) {
-                        null
-                    } else {
-                        content
-                    }
-                }
-                else -> targetElement.toString().trim().removeSurrounding("\"")
-                    .takeIf {
-                        !it.equals("null", ignoreCase = true) &&
-                        !it.equals("NA", ignoreCase = true) &&
-                        it != "0" &&
-                        it.isNotBlank()
-                    }
+            val element = effectiveSsIdElement ?: return null
+
+            if (element !is JsonPrimitive || element is JsonNull) {
+                return null
             }
+
+            return element.content
+                .trim()
+                .removeSurrounding("\"")
+                .trim()
+                .takeIf { value ->
+                    value.isNotBlank() &&
+                        !value.equals("NA", ignoreCase = true) &&
+                        !value.equals("N/A", ignoreCase = true) &&
+                        !value.equals("null", ignoreCase = true) &&
+                        !value.equals("undefined", ignoreCase = true) &&
+                        value != "0"
+                }
+        }
+}
+
+private fun JsonElement?.cleanPrimitiveOrNull(): String? {
+    if (this !is JsonPrimitive || this is JsonNull) return null
+    return content
+        .trim()
+        .removeSurrounding("\"")
+        .trim()
+        .takeIf { value ->
+            value.isNotBlank() &&
+                !value.equals("NA", ignoreCase = true) &&
+                !value.equals("N/A", ignoreCase = true) &&
+                !value.equals("null", ignoreCase = true) &&
+                !value.equals("undefined", ignoreCase = true)
         }
 }
 
 @Serializable
 data class OtpLoginResponse(
     @SerialName("Status")
+    @Serializable(with = LenientNullableStringSerializer::class)
     val status: String? = null,
     @SerialName("Msg")
     val msgElement: JsonElement? = null,
     @SerialName("status")
+    @Serializable(with = LenientNullableStringSerializer::class)
     val statusLower: String? = null,
     @SerialName("Message")
+    @Serializable(with = LenientNullableStringSerializer::class)
     val altMessage: String? = null,
     @SerialName("message")
-    val lowerMessage: String? = null
+    @Serializable(with = LenientNullableStringSerializer::class)
+    val lowerMessage: String? = null,
+    @SerialName("msg")
+    val msgLowerElement: JsonElement? = null
 ) {
     companion object {
         val defaultJson = Json {
@@ -121,13 +139,17 @@ data class OtpLoginResponse(
     val effectiveStatus: String?
         get() = status ?: statusLower
 
+    val effectiveMsgElement: JsonElement?
+        get() = msgElement?.takeUnless { it is JsonNull } ?: msgLowerElement?.takeUnless { it is JsonNull }
+
     val userMsg: OtpUserMsg?
         get() = getUserMsg(defaultJson)
 
     fun getUserMsg(json: Json = defaultJson): OtpUserMsg? {
+        val targetMsg = effectiveMsgElement ?: return null
         return try {
-            if (msgElement is JsonObject) {
-                json.decodeFromJsonElement<OtpUserMsg>(msgElement)
+            if (targetMsg is JsonObject) {
+                json.decodeFromJsonElement<OtpUserMsg>(targetMsg)
             } else {
                 null
             }
@@ -138,12 +160,10 @@ data class OtpLoginResponse(
 
     val errorMessage: String?
         get() {
-            when (msgElement) {
+            when (val targetMsg = effectiveMsgElement) {
                 is JsonPrimitive -> {
-                    val content = msgElement.content.trim().removeSurrounding("\"")
-                    if (content.isNotBlank() &&
-                        !content.equals("null", ignoreCase = true) &&
-                        !content.equals("NA", ignoreCase = true) &&
+                    val content = targetMsg.cleanPrimitiveOrNull()
+                    if (content != null &&
                         !content.equals("FAIL", ignoreCase = true) &&
                         !content.equals("FAILURE", ignoreCase = true)
                     ) {
@@ -151,41 +171,55 @@ data class OtpLoginResponse(
                     }
                 }
                 is JsonObject -> {
-                    val serverMsg = (msgElement["Msg"] as? JsonPrimitive)?.content
-                        ?: (msgElement["msg"] as? JsonPrimitive)?.content
-                        ?: (msgElement["Message"] as? JsonPrimitive)?.content
-                        ?: (msgElement["message"] as? JsonPrimitive)?.content
-                        ?: (msgElement["Error"] as? JsonPrimitive)?.content
-                        ?: (msgElement["error"] as? JsonPrimitive)?.content
-                    if (!serverMsg.isNullOrBlank()) {
-                        val clean = serverMsg.trim().removeSurrounding("\"")
-                        if (!clean.equals("FAIL", ignoreCase = true) && !clean.equals("FAILURE", ignoreCase = true)) {
-                            return clean
-                        }
+                    val serverMsg = targetMsg["Msg"].cleanPrimitiveOrNull()
+                        ?: targetMsg["msg"].cleanPrimitiveOrNull()
+                        ?: targetMsg["Message"].cleanPrimitiveOrNull()
+                        ?: targetMsg["message"].cleanPrimitiveOrNull()
+                        ?: targetMsg["Error"].cleanPrimitiveOrNull()
+                        ?: targetMsg["error"].cleanPrimitiveOrNull()
+                    if (serverMsg != null &&
+                        !serverMsg.equals("FAIL", ignoreCase = true) &&
+                        !serverMsg.equals("FAILURE", ignoreCase = true)
+                    ) {
+                        return serverMsg
                     }
-                    val otpStatus = (msgElement["OTP_Status"] as? JsonPrimitive)?.content
-                        ?: (msgElement["otp_status"] as? JsonPrimitive)?.content
+                    val otpStatus = targetMsg["OTP_Status"].cleanPrimitiveOrNull()
+                        ?: targetMsg["otp_status"].cleanPrimitiveOrNull()
                     if (otpStatus != null && !otpStatus.equals("SUCCESS", ignoreCase = true)) {
                         return "OTP Status: $otpStatus"
                     }
                 }
                 else -> {}
             }
-            val alt = altMessage ?: lowerMessage
-            if (!alt.isNullOrBlank()) {
-                val clean = alt.trim().removeSurrounding("\"")
-                if (!clean.equals("FAIL", ignoreCase = true) && !clean.equals("FAILURE", ignoreCase = true)) {
-                    return clean
+            val alt = (altMessage ?: lowerMessage)
+                ?.trim()
+                ?.removeSurrounding("\"")
+                ?.trim()
+                ?.takeIf { value ->
+                    value.isNotBlank() &&
+                        !value.equals("NA", ignoreCase = true) &&
+                        !value.equals("N/A", ignoreCase = true) &&
+                        !value.equals("null", ignoreCase = true) &&
+                        !value.equals("undefined", ignoreCase = true)
                 }
+            if (alt != null &&
+                !alt.equals("FAIL", ignoreCase = true) &&
+                !alt.equals("FAILURE", ignoreCase = true)
+            ) {
+                return alt
             }
             return null
         }
 
     val isSuccessful: Boolean
         get() {
-            if (!effectiveStatus.equals("SUCCESS", ignoreCase = true)) return false
+            if (!effectiveStatus.equals("SUCCESS", ignoreCase = true)) {
+                return false
+            }
+
             val user = getUserMsg() ?: return false
-            val otpStat = user.effectiveOtpStatus ?: user.otpStatus
-            return otpStat == null || otpStat.equals("SUCCESS", ignoreCase = true)
+            val otpStatus = user.effectiveOtpStatus
+
+            return otpStatus == null || otpStatus.equals("SUCCESS", ignoreCase = true)
         }
 }

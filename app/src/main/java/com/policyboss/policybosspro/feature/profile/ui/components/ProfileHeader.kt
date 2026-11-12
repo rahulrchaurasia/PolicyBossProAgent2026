@@ -152,8 +152,8 @@ fun ProfileHeader(
 @Composable
 private fun ProfileHeaderPreview() {
     ProfileHeader(
-        fullName = "Dinesh Das",
-        initials = "DD",
+        fullName = "Rahul Rajendra Chaurasia",
+        initials = "RC",
         onBackClick = {}
     )
 }

@@ -494,7 +494,7 @@ fun HomeScreenFigmaPreview() {
     MaterialTheme {
         HomeScreen(
             uiState = HomeUiState(
-                userInitials = "DD",
+                userInitials = "RC",
                 earningsSummary = AppDummyData.earningsSummary,
                 quoteTabs = AppDummyData.quoteVehicleTabs,
                 selectedQuoteTab = "Car",

@@ -13,8 +13,10 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Lenient serializer for nullable strings in API responses.
- * Gracefully parses numbers (e.g. 9773113793 -> "9773113793"), unquotes strings,
- * and handles "NA", "null", JsonNull, and empty values by returning null.
+ * Gracefully parses scalar primitives (e.g. 9773113793 -> "9773113793"), strips surrounding quotes,
+ * maps non-primitive types (JsonObject, JsonArray) and dirty literals
+ * ("NA", "N/A", "null", "undefined", JsonNull, blank) to null,
+ * while preserving legitimate values such as "0".
  */
 
 /*
@@ -35,33 +37,39 @@ What is LenientNullableStringSerializer?In Android and Kotlin applications,
  */
 @OptIn(ExperimentalSerializationApi::class)
 object LenientNullableStringSerializer : KSerializer<String?> {
+
     override val descriptor: SerialDescriptor =
         PrimitiveSerialDescriptor("LenientNullableString", PrimitiveKind.STRING)
 
-
-
     override fun deserialize(decoder: Decoder): String? {
-        val jsonDecoder = decoder as? JsonDecoder ?: return if (decoder.decodeNotNullMark()) decoder.decodeString() else null
+        val jsonDecoder = decoder as? JsonDecoder
+            ?: return if (decoder.decodeNotNullMark()) decoder.decodeString() else null
+
         return when (val element = jsonDecoder.decodeJsonElement()) {
+            JsonNull -> null
             is JsonPrimitive -> {
-                if (element is JsonNull) {
-                    null
-                } else {
-                    val str = element.content.trim().removeSurrounding("\"")
-                    if (str.equals("NA", ignoreCase = true) || str.equals("null", ignoreCase = true) || str.isBlank()) {
-                        null
-                    } else {
-                        str
+                element.content
+                    .trim()
+                    .removeSurrounding("\"")
+                    .trim()
+                    .takeIf { value ->
+                        value.isNotBlank() &&
+                            !value.equals("NA", ignoreCase = true) &&
+                            !value.equals("N/A", ignoreCase = true) &&
+                            !value.equals("null", ignoreCase = true) &&
+                            !value.equals("undefined", ignoreCase = true)
                     }
-                }
             }
-            // Removed the unreachable 'is JsonNull -> null' branch here
             else -> null
         }
     }
 
     override fun serialize(encoder: Encoder, value: String?) {
-        if (value == null) encoder.encodeNull() else encoder.encodeString(value)
+        if (value == null) {
+            encoder.encodeNull()
+        } else {
+            encoder.encodeString(value)
+        }
     }
 }
 

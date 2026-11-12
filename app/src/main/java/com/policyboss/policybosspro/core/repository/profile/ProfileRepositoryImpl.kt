@@ -1,13 +1,16 @@
 package com.policyboss.policybosspro.core.repository.profile
 
 import com.policyboss.policybosspro.core.datastore.AppDataManager
-import com.policyboss.policybosspro.feature.dummyData.AppDummyData
+import com.policyboss.policybosspro.core.datastore.UserSession
+import com.policyboss.policybosspro.core.utils.UserProfileParser
+import com.policyboss.policybosspro.feature.profile.model.AccountDetails
+import com.policyboss.policybosspro.feature.profile.model.DisplayInformation
 import com.policyboss.policybosspro.feature.profile.model.PersonalInformation
 import com.policyboss.policybosspro.feature.profile.model.UserProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,49 +19,126 @@ class ProfileRepositoryImpl @Inject constructor(
     private val appDataManager: AppDataManager
 ) : ProfileRepository {
 
-    private val _userProfileState = MutableStateFlow(AppDummyData.defaultUserProfile)
+    private val _useSameAsPosp = MutableStateFlow(false)
+    private val _personalOverrides = MutableStateFlow<Pair<String, PersonalInformation>?>(null)
 
     override fun getUserProfile(): Flow<Result<UserProfile>> {
-        return _userProfileState.asStateFlow().map { profile ->
-            Result.success(profile)
+        return combine(
+            appDataManager.userSession,
+            _useSameAsPosp,
+            _personalOverrides
+        ) { session, useSameAsPosp, overridesPair ->
+            Result.success(
+                buildUserProfileSnapshot(
+                    session = session,
+                    useSameAsPosp = useSameAsPosp,
+                    overridesPair = overridesPair
+                )
+            )
         }
     }
 
     override suspend fun updatePersonalInfo(personalInfo: PersonalInformation): Result<UserProfile> {
-        val updatedInitials = extractInitials(personalInfo.fullName)
-        val updated = _userProfileState.value.copy(
-            fullName = personalInfo.fullName,
-            initials = updatedInitials,
-            personalInfo = personalInfo
-        )
-        _userProfileState.value = updated
+        val currentSession = appDataManager.getUserSession()
+        if (currentSession.isLoggedIn) {
+            _personalOverrides.value = currentSession.ssId to personalInfo
+        }
 
-        // Sync with AppDataManager so HomeTopBar and other screens stay updated
+        val combinedAddress = listOf(
+            personalInfo.address,
+            personalInfo.city,
+            personalInfo.state,
+            personalInfo.pincode
+        ).map { it.trim() }.filter { it.isNotBlank() }.joinToString(", ")
+
+        // Sync with AppDataManager so HomeTopBar, MenuScreen, and Profile stay updated
         appDataManager.saveUserSession(
-            name = personalInfo.fullName.takeIf { it.isNotBlank() },
-            mobile = personalInfo.mobile.takeIf { it.isNotBlank() },
-            email = personalInfo.email.takeIf { it.isNotBlank() }
+            name = personalInfo.fullName.trim().takeIf { it.isNotBlank() },
+            mobile = personalInfo.mobile.trim().takeIf { it.isNotBlank() },
+            email = personalInfo.email.trim().takeIf { it.isNotBlank() },
+            address = combinedAddress.takeIf { it.isNotBlank() }
         )
 
-        return Result.success(updated)
+        val refreshedSession = appDataManager.getUserSession()
+        return Result.success(
+            buildUserProfileSnapshot(
+                session = refreshedSession,
+                useSameAsPosp = _useSameAsPosp.value,
+                overridesPair = _personalOverrides.value
+            )
+        )
     }
 
     override suspend fun toggleUseSameAsPosp(useSame: Boolean): Result<UserProfile> {
-        val updated = _userProfileState.value.copy(useSameAsPosp = useSame)
-        _userProfileState.value = updated
-        return Result.success(updated)
+        _useSameAsPosp.value = useSame
+        return getUserProfile().first()
     }
 
-    private fun extractInitials(fullName: String): String {
-        val trimmed = fullName.trim()
-        if (trimmed.isEmpty()) return "DD"
-        val parts = trimmed.split(" ").filter { it.isNotBlank() }
-        return when {
-            parts.size >= 2 -> "${parts[0].first().uppercaseChar()}${parts[1].first().uppercaseChar()}"
-            parts.size == 1 && parts[0].length >= 2 -> parts[0].take(2).uppercase()
-            parts.size == 1 && parts[0].isNotEmpty() -> "${parts[0].first().uppercaseChar()}"
-            else -> "DD"
+    private suspend fun buildUserProfileSnapshot(
+        session: UserSession,
+        useSameAsPosp: Boolean,
+        overridesPair: Pair<String, PersonalInformation>?
+    ): UserProfile {
+        val activeOverrides = if (
+            session.isLoggedIn &&
+            overridesPair != null &&
+            overridesPair.first == session.ssId
+        ) {
+            overridesPair.second
+        } else {
+            null
         }
+
+        val horizon = appDataManager.getLoginHorizonResponse()
+        val pospUser = horizon?.POSP_USER
+        val posp = horizon?.POSP
+        val emp = horizon?.EMP
+
+        val resolvedFullName = activeOverrides?.fullName?.trim()?.takeIf { it.isNotBlank() }
+            ?: session.name.trim().takeIf { it.isNotBlank() }
+            ?: "Guest User"
+
+        val resolvedInitials = activeOverrides?.fullName?.trim()?.takeIf { it.isNotBlank() }?.let {
+            UserProfileParser.extractInitials(it)
+        } ?: session.initials.ifBlank {
+            UserProfileParser.extractInitials(session.name)
+        }
+
+        val personalInfo = activeOverrides ?: PersonalInformation(
+            fullName = resolvedFullName,
+            mobile = session.mobile,
+            dob = pospUser?.Birthdate?.trim().orEmpty(),
+            email = session.email,
+            pan = emp?.Pan?.trim().orEmpty(),
+            address = session.address,
+            city = pospUser?.Permanant_City?.trim().orEmpty(),
+            state = pospUser?.Permanant_State?.trim().orEmpty(),
+            pincode = pospUser?.Permanant_Pincode?.trim().orEmpty()
+        )
+
+        val accountDetails = AccountDetails(
+            ssId = session.ssId.takeIf { it.isNotBlank() && it != "0" } ?: "NA",
+            plan = horizon?.channel?.trim()?.takeIf { it.isNotBlank() } ?: "NA",
+            rmName = posp?.Sm_Posp_Name?.trim()?.takeIf { it.isNotBlank() } ?: "NA",
+            rmMobile = "",
+            rmEmail = ""
+        )
+
+        val displayInfo = DisplayInformation(
+            displayName = resolvedFullName,
+            displayMobile = personalInfo.mobile,
+            displayEmail = personalInfo.email,
+            displayPictureRes = null
+        )
+
+        return UserProfile(
+            fullName = resolvedFullName,
+            initials = resolvedInitials,
+            accountDetails = accountDetails,
+            displayInfo = displayInfo,
+            personalInfo = personalInfo,
+            useSameAsPosp = useSameAsPosp
+        )
     }
 }
 

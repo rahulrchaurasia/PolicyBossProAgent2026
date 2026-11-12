@@ -19,7 +19,7 @@ import com.policyboss.policybosspro.feature.home.model.video.VideoModel
 data class HomeUiState(
     // User Context
     val userName: String = "Guest User",
-    val userInitials: String = "DD",
+    val userInitials: String = "PB",
     val supportNumber: String = "9224624999",
 
     // Earnings

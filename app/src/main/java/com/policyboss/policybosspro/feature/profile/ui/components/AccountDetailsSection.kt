@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.policyboss.policybosspro.feature.dummyData.AppDummyData
 import com.policyboss.policybosspro.feature.profile.model.AccountDetails
 import com.policyboss.policybosspro.ui.theme.AppColors
 
@@ -82,7 +83,7 @@ fun AccountDetailsSection(
 @Composable
 private fun AccountDetailsSectionPreview() {
     AccountDetailsSection(
-        accountDetails = AccountDetails()
+        accountDetails = AppDummyData.defaultUserProfile.accountDetails
     )
 }
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.policyboss.policybosspro.core.AppConfig
 import com.policyboss.policybosspro.core.datastore.AppDataManager
+import com.policyboss.policybosspro.core.utils.UserProfileParser
 import com.policyboss.policybosspro.core.network.ConnectivityObserver
 import com.policyboss.policybosspro.core.network.NetworkError
 import com.policyboss.policybosspro.core.repository.home.HomeRepository
@@ -249,12 +250,11 @@ class HomeViewModel @Inject constructor(
 
     private fun observeUserData() {
         viewModelScope.launch {
-            appDataManager.userName.collect { name ->
-                val initials = extractInitials(name)
+            appDataManager.userSession.collect { session ->
                 _uiState.update {
                     it.copy(
-                        userName = name,
-                        userInitials = initials
+                        userName = session.name.ifBlank { "Guest User" },
+                        userInitials = session.initials.ifBlank { UserProfileParser.DEFAULT_INITIALS }
                     )
                 }
             }
@@ -266,18 +266,6 @@ class HomeViewModel @Inject constructor(
                     it.copy(supportNumber = number)
                 }
             }
-        }
-    }
-
-    private fun extractInitials(fullName: String): String {
-        val trimmed = fullName.trim()
-        if (trimmed.isEmpty()) return "DD"
-        val parts = trimmed.split(" ").filter { it.isNotBlank() }
-        return when {
-            parts.size >= 2 -> "${parts[0].first().uppercaseChar()}${parts[1].first().uppercaseChar()}"
-            parts.size == 1 && parts[0].length >= 2 -> parts[0].take(2).uppercase()
-            parts.size == 1 && parts[0].isNotEmpty() -> "${parts[0].first().uppercaseChar()}"
-            else -> "DD"
         }
     }
 

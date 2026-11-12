@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.policyboss.policybosspro.core.network.ConnectivityObserver
 import com.policyboss.policybosspro.core.network.NetworkError
 import com.policyboss.policybosspro.core.repository.lead.LeadRepository
+import com.policyboss.policybosspro.feature.lead.model.FilterCriteria
 import com.policyboss.policybosspro.feature.lead.model.LeadAction
 import com.policyboss.policybosspro.feature.lead.model.LeadDialogType
 import com.policyboss.policybosspro.feature.lead.model.LeadUiEvent
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 @HiltViewModel
 class LeadViewModel @Inject constructor(
@@ -77,45 +79,153 @@ class LeadViewModel @Inject constructor(
     fun onAction(action: LeadAction) {
         when (action) {
             is LeadAction.SelectLeadTab -> _uiState.update { it.copy(selectedTab = action.tab) }
-            is LeadAction.SelectStatusFilter -> _uiState.update {
-                it.copy(selectedStatusFilter = if (it.selectedStatusFilter == action.status) null else action.status)
+
+            is LeadAction.UpdateSearchQuery -> _uiState.update { it.copy(searchQuery = action.query) }
+
+            is LeadAction.ToggleSearchMode -> _uiState.update {
+                it.copy(
+                    isSearchActive = action.active,
+                    searchQuery = if (!action.active) "" else it.searchQuery,
+                    showSortDropdown = false
+                )
             }
-            is LeadAction.SelectExpiryFilter -> _uiState.update { 
-                it.copy(selectedExpiryFilter = if (it.selectedExpiryFilter == action.filter) null else action.filter) 
+
+            // Toolbar: Add Lead
+            LeadAction.OnAddLeadClick -> {
+                sendEvent(LeadUiEvent.ShowSnackbar("Add Lead coming soon"))
             }
-            is LeadAction.ToggleVehicleFilter -> _uiState.update {
-                val filters = it.selectedVehicleFilters.toMutableSet()
-                if (filters.contains(action.filter)) filters.remove(action.filter) else filters.add(action.filter)
-                it.copy(selectedVehicleFilters = filters)
+
+            // Toolbar: Filter Sheet
+            LeadAction.OnToggleFilterSheet -> _uiState.update {
+                it.copy(
+                    showFilterSheet = true,
+                    showSortDropdown = false,
+                    tempFilterCriteria = it.filterCriteria
+                )
             }
+
+            LeadAction.OnDismissFilterSheet -> _uiState.update {
+                it.copy(showFilterSheet = false, tempFilterCriteria = it.filterCriteria)
+            }
+
+            is LeadAction.OnSelectFilterCategory -> _uiState.update {
+                it.copy(activeFilterCategory = action.category)
+            }
+
+            is LeadAction.ToggleStageFilter -> _uiState.update { state ->
+                val updated = state.tempFilterCriteria.stages.toggle(action.stage)
+                state.copy(tempFilterCriteria = state.tempFilterCriteria.copy(stages = updated))
+            }
+
+            is LeadAction.ToggleVehicleTypeFilter -> _uiState.update { state ->
+                val updated = state.tempFilterCriteria.vehicleTypes.toggle(action.vehicle)
+                state.copy(tempFilterCriteria = state.tempFilterCriteria.copy(vehicleTypes = updated))
+            }
+
+            is LeadAction.ToggleRenewalTimeFilter -> _uiState.update { state ->
+                val updated = state.tempFilterCriteria.renewalTimes.toggle(action.time)
+                state.copy(tempFilterCriteria = state.tempFilterCriteria.copy(renewalTimes = updated))
+            }
+
+            is LeadAction.UpdateEarningsRange -> _uiState.update { state ->
+                val min = action.range.start.roundToInt().toFloat()
+                    .coerceIn(FilterCriteria.DEFAULT_EARNINGS_RANGE.start, FilterCriteria.DEFAULT_EARNINGS_RANGE.endInclusive)
+                val max = action.range.endInclusive.roundToInt().toFloat()
+                    .coerceIn(min, FilterCriteria.DEFAULT_EARNINGS_RANGE.endInclusive)
+                state.copy(tempFilterCriteria = state.tempFilterCriteria.copy(earningsRange = min..max))
+            }
+
+            is LeadAction.ToggleRelationshipFilter -> _uiState.update { state ->
+                val updated = state.tempFilterCriteria.relationships.toggle(action.relationship)
+                state.copy(tempFilterCriteria = state.tempFilterCriteria.copy(relationships = updated))
+            }
+
+            is LeadAction.SelectSortOption -> _uiState.update { state ->
+                if (state.showFilterSheet) {
+                    state.copy(
+                        tempFilterCriteria = state.tempFilterCriteria.copy(sortBy = action.option)
+                    )
+                } else {
+                    state.copy(
+                        tempFilterCriteria = state.tempFilterCriteria.copy(sortBy = action.option),
+                        filterCriteria = state.filterCriteria.copy(sortBy = action.option),
+                        showSortDropdown = false
+                    )
+                }
+            }
+
+            LeadAction.ApplyFilters -> _uiState.update {
+                it.copy(filterCriteria = it.tempFilterCriteria, showFilterSheet = false)
+            }
+
+            LeadAction.ResetFilters -> _uiState.update {
+                it.copy(tempFilterCriteria = FilterCriteria())
+            }
+
+            is LeadAction.RemoveFilterChip -> removeFilter(action.type, action.value)
+
+            is LeadAction.ToggleSortDropdown -> _uiState.update {
+                it.copy(showSortDropdown = action.show)
+            }
+
+            // Lead Details & Secondary Dialogs
             is LeadAction.OpenLeadDetails -> _uiState.update { it.copy(selectedLead = action.lead) }
             LeadAction.CloseLeadDetails -> _uiState.update { it.copy(selectedLead = null) }
-            
-            is LeadAction.OpenMarkAsLost -> _uiState.update { it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.MARK_LOST) }
+
+            is LeadAction.OpenMarkAsLost -> _uiState.update {
+                it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.MARK_LOST)
+            }
             LeadAction.CloseMarkAsLost -> _uiState.update { it.copy(activeDialog = null) }
             is LeadAction.SubmitMarkAsLost -> submitMarkAsLost(action.reason, action.otherDescription)
-            
-            is LeadAction.OpenMarkVehicleSold -> _uiState.update { it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.MARK_SOLD) }
+
+            is LeadAction.OpenMarkVehicleSold -> _uiState.update {
+                it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.MARK_SOLD)
+            }
             LeadAction.CloseMarkVehicleSold -> _uiState.update { it.copy(activeDialog = null) }
             LeadAction.SubmitMarkVehicleSold -> submitMarkVehicleSold()
-            
-            is LeadAction.OpenAddRelationship -> _uiState.update { it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.ADD_RELATIONSHIP) }
+
+            is LeadAction.OpenAddRelationship -> _uiState.update {
+                it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.ADD_RELATIONSHIP)
+            }
             LeadAction.CloseAddRelationship -> _uiState.update { it.copy(activeDialog = null) }
             is LeadAction.SubmitRelationship -> submitRelationship(action.category, action.subCategory)
-            
-            is LeadAction.OpenEditDetails -> _uiState.update { it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.EDIT_DETAILS) }
+
+            is LeadAction.OpenEditDetails -> _uiState.update {
+                it.copy(selectedLead = action.lead, activeDialog = LeadDialogType.EDIT_DETAILS)
+            }
             LeadAction.CloseEditDetails -> _uiState.update { it.copy(activeDialog = null) }
             is LeadAction.SubmitEditDetails -> submitEditDetails(action.ncbStatus, action.expiryDate)
-            
+
             is LeadAction.ContinueToQuotes -> {
                 if (!connectivityObserver.isCurrentlyConnected()) {
                     sendEvent(LeadUiEvent.ShowSnackbar("Internet connection required to view live quotes."))
+                } else {
+                    sendEvent(LeadUiEvent.ShowSnackbar("Fetching quotes for ${action.lead.name}"))
                 }
             }
-            is LeadAction.ShareLead -> { /* Trigger effect to share */ }
+
+            is LeadAction.ShareLead -> {
+                sendEvent(LeadUiEvent.ShowSnackbar("Sharing lead ${action.lead.name}"))
+            }
+
             LeadAction.OnRetryClick, LeadAction.LoadLeads -> {
                 loadLeads(showLoading = !_uiState.value.hasCachedData, isManualRetry = true)
             }
+        }
+    }
+
+    private fun removeFilter(type: String, value: String) {
+        _uiState.update { state ->
+            val fc = state.filterCriteria
+            val updated = when (type) {
+                "STAGE" -> fc.copy(stages = fc.stages - value)
+                "VEHICLE" -> fc.copy(vehicleTypes = fc.vehicleTypes - value)
+                "RENEWAL" -> fc.copy(renewalTimes = fc.renewalTimes - value)
+                "EARNINGS" -> fc.copy(earningsRange = FilterCriteria.DEFAULT_EARNINGS_RANGE)
+                "RELATION" -> fc.copy(relationships = fc.relationships - value)
+                else -> fc
+            }
+            state.copy(filterCriteria = updated, tempFilterCriteria = updated)
         }
     }
 
@@ -259,7 +369,7 @@ class LeadViewModel @Inject constructor(
             }
         }
     }
-    
+
     private fun submitEditDetails(ncbStatus: String, expiryDate: String) {
         val lead = _uiState.value.selectedLead ?: return
 
@@ -288,4 +398,7 @@ class LeadViewModel @Inject constructor(
             _uiEvent.send(event)
         }
     }
+
+    private fun Set<String>.toggle(value: String): Set<String> =
+        if (contains(value)) this - value else this + value
 }

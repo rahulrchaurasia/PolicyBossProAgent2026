@@ -3,6 +3,7 @@ package com.policyboss.policybosspro.core.repository.login
 import android.os.Build
 import android.util.Log
 import com.policyboss.policybosspro.core.datastore.AppDataManager
+import com.policyboss.policybosspro.core.utils.UserProfileParser
 import com.policyboss.policybosspro.feature.login.data.api.LoginApi
 import com.policyboss.policybosspro.feature.login.data.model.OtpLoginRequest
 import com.policyboss.policybosspro.feature.login.data.model.OtpLoginResponse
@@ -131,22 +132,17 @@ class LoginRepositoryImpl @Inject constructor(
                     return@withContext Result.failure(Exception("Failed to verify Horizon user profile."))
                 }
 
-                val resolvedSsId = body.extractedSsId.ifBlank { cleanSsId }
-                val resolvedFbaId = body.extractedFbaId
-                val resolvedName = body.extractedName
-                val resolvedMobile = body.extractedMobile
-                val resolvedEmail = body.extractedEmail
-                val resolvedUserType = body.userType.orEmpty()
-
-                appDataManager.saveUserSession(
-                    name = resolvedName.takeIf { it.isNotBlank() },
-                    mobile = resolvedMobile.takeIf { it.isNotBlank() },
-                    email = resolvedEmail.takeIf { it.isNotBlank() },
-                    ssId = resolvedSsId,
-                    fbaId = resolvedFbaId,
-                    userType = resolvedUserType.takeIf { it.isNotBlank() },
-                    isLogin = true
+                appDataManager.saveLoginHorizonResponse(
+                    response = body,
+                    fallbackSsId = cleanSsId
                 )
+
+                val resolvedSsId = UserProfileParser.extractSsId(body).let {
+                    if (it == "0") cleanSsId else it
+                }
+                val resolvedFbaId = UserProfileParser.extractFbaId(body).let {
+                    if (it == "0") body.extractedFbaId else it
+                }
 
                 supervisorScope {
                     val userConstantDeferred = async {

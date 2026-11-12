@@ -9,7 +9,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -36,18 +35,15 @@ class MenuViewModel @Inject constructor(
 
     private fun observeUserData() {
         viewModelScope.launch {
-            combine(
-                appDataManager.userName,
-                appDataManager.userSsId,
-                appDataManager.userFbaId
-            ) { name, ssId, fbaId ->
-                Triple(name, ssId, fbaId)
-            }.collect { (name, ssId, fbaId) ->
+            appDataManager.userSession.collect { session ->
                 _uiState.update { current ->
                     current.copy(
-                        userName = name,
-                        userSsId = ssId,
-                        userFbaId = fbaId
+                        userName = session.name,
+                        initials = session.initials,
+                        userSsId = session.ssId,
+                        userFbaId = session.fbaId,
+                        userDesignation = session.designation,
+                        userType = session.userType
                     )
                 }
             }

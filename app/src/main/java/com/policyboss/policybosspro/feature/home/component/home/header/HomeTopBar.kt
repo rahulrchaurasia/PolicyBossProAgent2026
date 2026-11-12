@@ -57,7 +57,7 @@ fun HomeTopBar(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = userInitials.ifEmpty { "DD" },
+                text = userInitials.ifBlank { "PB" },
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium
             )
@@ -145,7 +145,7 @@ private fun TopBarIconButton(
 @Composable
 private fun HomeTopBarPreview() {
     HomeTopBar(
-        userInitials = "DD",
+        userInitials = "RC",
         onProfileClick = {},
         onWalletClick = {},
         onSupportClick = {},

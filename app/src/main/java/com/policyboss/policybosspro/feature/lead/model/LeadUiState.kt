@@ -1,6 +1,48 @@
 package com.policyboss.policybosspro.feature.lead.model
 
 import com.policyboss.policybosspro.feature.home.model.home.HomeLead
+import kotlin.math.roundToInt
+
+enum class FilterCategory(val displayName: String) {
+    STAGE("Stage"),
+    VEHICLE_TYPE("Vehicle Type"),
+    RENEWAL_TIME("Renewal Time"),
+    EARNINGS("Earnings"),
+    RELATIONSHIP("Relationship"),
+    SORT_BY("Sort By")
+}
+
+enum class LeadSortOption(val displayName: String) {
+    HIGHEST_EARNINGS("Highest Earnings"),
+    UPCOMING_RENEWAL("Upcoming Renewal"),
+    RECENTLY_ADDED("Recently Added"),
+    LOWEST_PREMIUM("Lowest Premium"),
+    HIGHEST_DISCOUNT("Highest Discount")
+}
+
+data class FilterCriteria(
+    val stages: Set<String> = emptySet(),
+    val vehicleTypes: Set<String> = emptySet(),
+    val renewalTimes: Set<String> = emptySet(),
+    val earningsRange: ClosedFloatingPointRange<Float> = DEFAULT_EARNINGS_RANGE,
+    val relationships: Set<String> = emptySet(),
+    val sortBy: LeadSortOption = LeadSortOption.HIGHEST_EARNINGS
+) {
+    companion object {
+        val DEFAULT_EARNINGS_RANGE: ClosedFloatingPointRange<Float> = 100f..5000f
+    }
+
+    val hasCustomEarningsFilter: Boolean
+        get() = earningsRange.start.roundToInt() != DEFAULT_EARNINGS_RANGE.start.roundToInt() ||
+                earningsRange.endInclusive.roundToInt() != DEFAULT_EARNINGS_RANGE.endInclusive.roundToInt()
+
+    val totalActiveFiltersCount: Int
+        get() = stages.size +
+                vehicleTypes.size +
+                renewalTimes.size +
+                relationships.size +
+                if (hasCustomEarningsFilter) 1 else 0
+}
 
 data class LeadUiState(
     val isLoading: Boolean = false,
@@ -9,12 +51,16 @@ data class LeadUiState(
     val isInitialLoadCompleted: Boolean = false,
     val error: String? = null,
     val allLeads: List<HomeLead> = emptyList(),
-    
+
     val selectedTab: String = "All Leads",
-    val selectedStatusFilter: String? = null,
-    val selectedExpiryFilter: String? = null,
-    val selectedVehicleFilters: Set<String> = emptySet(),
-    
+    val searchQuery: String = "",
+    val isSearchActive: Boolean = false,
+    val activeFilterCategory: FilterCategory = FilterCategory.STAGE,
+    val filterCriteria: FilterCriteria = FilterCriteria(),
+    val tempFilterCriteria: FilterCriteria = FilterCriteria(),
+    val showFilterSheet: Boolean = false,
+    val showSortDropdown: Boolean = false,
+
     val selectedLead: HomeLead? = null,
     val activeDialog: LeadDialogType? = null
 ) {
@@ -29,37 +75,69 @@ data class LeadUiState(
 
     val filteredLeads: List<HomeLead>
         get() {
-            var list = allLeads
-            
-            // 1. Tab Filter ("All Leads", "Renewals", "Synced contacts", "Added by me")
-            if (selectedTab.equals("Renewals", ignoreCase = true)) {
-                list = list.filter { it.leadType.equals("Renewal", ignoreCase = true) }
-            } else if (selectedTab.equals("Synced contacts", ignoreCase = true)) {
-                list = list.filter { it.leadType.equals("Sync", ignoreCase = true) }
-            } else if (selectedTab.equals("Added by me", ignoreCase = true)) {
-                list = list.filter { it.leadType.equals("Added by me", ignoreCase = true) || it.leadType.equals("Manual", ignoreCase = true) }
-            }
-            
-            // 2. Status Filter ("New", "In Progress", "Won", "Lost")
-            if (!selectedStatusFilter.isNullOrBlank()) {
-                list = list.filter { it.status.equals(selectedStatusFilter, ignoreCase = true) }
+            val trimmedQuery = searchQuery.trim()
+            val minEarnings = filterCriteria.earningsRange.start.roundToInt()
+            val maxEarnings = filterCriteria.earningsRange.endInclusive.roundToInt()
+
+            val filtered = allLeads.filter { lead ->
+                val matchesTab = when {
+                    selectedTab.equals("Renewals", ignoreCase = true) ->
+                        lead.leadType.equals("Renewal", ignoreCase = true)
+                    selectedTab.equals("Synced contacts", ignoreCase = true) ->
+                        lead.leadType.equals("Sync", ignoreCase = true) ||
+                                lead.leadType.contains("Synced", ignoreCase = true)
+                    selectedTab.equals("Added by me", ignoreCase = true) ->
+                        lead.leadType.equals("Added by me", ignoreCase = true) ||
+                                lead.leadType.equals("Manual", ignoreCase = true)
+                    else -> true
+                }
+
+                val matchesSearch = trimmedQuery.isEmpty() ||
+                        lead.name.contains(trimmedQuery, ignoreCase = true) ||
+                        lead.vehicleModel.contains(trimmedQuery, ignoreCase = true) ||
+                        lead.registrationNumber.contains(trimmedQuery, ignoreCase = true)
+
+                val matchesStage = filterCriteria.stages.isEmpty() ||
+                        filterCriteria.stages.any { matchesStageFilter(lead.status, it) }
+
+                val matchesVehicle = filterCriteria.vehicleTypes.isEmpty() ||
+                        filterCriteria.vehicleTypes.any { matchesVehicleFilter(lead.vehicleType, it) }
+
+                val matchesRenewal = filterCriteria.renewalTimes.isEmpty() ||
+                        filterCriteria.renewalTimes.any { matchesRenewalTimeFilter(lead.expiryText, it) }
+
+                val leadEarnings = extractEarningsAmount(lead)
+                val matchesEarnings = !filterCriteria.hasCustomEarningsFilter ||
+                        leadEarnings in minEarnings..maxEarnings
+
+                val matchesRelationship = filterCriteria.relationships.isEmpty() ||
+                        filterCriteria.relationships.any { matchesRelationshipFilter(lead.relationCategory, it) }
+
+                matchesTab &&
+                        matchesSearch &&
+                        matchesStage &&
+                        matchesVehicle &&
+                        matchesRenewal &&
+                        matchesEarnings &&
+                        matchesRelationship
             }
 
-            // 3. Expiry Filter ("7 days", "7-14 days", "14+ days")
-            if (selectedExpiryFilter == "7 days") {
-                list = list.filter { it.expiryText.contains("1d") || it.expiryText.contains("2d") || it.expiryText.contains("3d") || it.expiryText.contains("7d") }
-            } else if (selectedExpiryFilter == "7-14 days") {
-                list = list.filter { it.expiryText.contains("8d") || it.expiryText.contains("9d") || it.expiryText.contains("10d") || it.expiryText.contains("12d") || it.expiryText.contains("14d") }
-            } else if (selectedExpiryFilter == "14+ days") {
-                list = list.filter { it.expiryText.contains("15d") || it.expiryText.contains("20d") || it.expiryText.contains("21d") || it.expiryText.contains("25d") || it.expiryText.contains("30d") }
+            return when (filterCriteria.sortBy) {
+                LeadSortOption.HIGHEST_EARNINGS ->
+                    filtered.sortedByDescending { extractEarningsAmount(it) }
+                LeadSortOption.UPCOMING_RENEWAL ->
+                    filtered.sortedBy { extractExpiryDays(it.expiryText) ?: Int.MAX_VALUE }
+                LeadSortOption.RECENTLY_ADDED ->
+                    filtered.sortedByDescending {
+                        if (it.leadType.equals("Added by me", ignoreCase = true) ||
+                            it.leadType.equals("Manual", ignoreCase = true)
+                        ) 1 else 0
+                    }
+                LeadSortOption.LOWEST_PREMIUM ->
+                    filtered.sortedBy { it.minPremium.filter(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }
+                LeadSortOption.HIGHEST_DISCOUNT ->
+                    filtered.sortedByDescending { it.specialDealsCount }
             }
-            
-            // 4. Vehicle Filter ("Car", "Two Wheeler", "Commercial Vehicle")
-            if (selectedVehicleFilters.isNotEmpty()) {
-                list = list.filter { selectedVehicleFilters.contains(it.vehicleType) }
-            }
-            
-            return list
         }
 }
 
@@ -68,4 +146,57 @@ enum class LeadDialogType {
     MARK_SOLD,
     ADD_RELATIONSHIP,
     EDIT_DETAILS
+}
+
+private val EXPIRY_DAYS_REGEX = Regex("(\\d+)\\s*(?:d\\b|day|days)", RegexOption.IGNORE_CASE)
+private val TRAILING_COUNT_REGEX = Regex("\\s*\\(\\d+\\)$")
+
+internal fun extractExpiryDays(expiryText: String): Int? =
+    EXPIRY_DAYS_REGEX.find(expiryText)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+internal fun extractEarningsAmount(lead: HomeLead): Int {
+    val raw = lead.maxBrokerage.ifBlank { lead.brokerageAmount }.ifBlank { lead.minPremium }
+    return raw.filter(Char::isDigit).toIntOrNull() ?: 0
+}
+
+private fun matchesStageFilter(leadStatus: String, stageFilter: String): Boolean {
+    return when {
+        stageFilter.equals("Fresh/New", ignoreCase = true) ->
+            leadStatus.equals("New", ignoreCase = true) || leadStatus.equals("Fresh", ignoreCase = true)
+        stageFilter.equals("Ongoing", ignoreCase = true) ->
+            leadStatus.equals("In Progress", ignoreCase = true) || leadStatus.equals("Ongoing", ignoreCase = true)
+        else -> leadStatus.equals(stageFilter, ignoreCase = true)
+    }
+}
+
+private fun matchesVehicleFilter(leadVehicleType: String, vehicleFilter: String): Boolean {
+    return if (vehicleFilter.equals("CV", ignoreCase = true)) {
+        leadVehicleType.equals("Commercial Vehicle", ignoreCase = true) ||
+                leadVehicleType.equals("CV", ignoreCase = true)
+    } else {
+        leadVehicleType.equals(vehicleFilter, ignoreCase = true)
+    }
+}
+
+private fun matchesRenewalTimeFilter(expiryText: String, timeFilter: String): Boolean {
+    val days = extractExpiryDays(expiryText) ?: return false
+    return when (timeFilter) {
+        "7 days" -> days in 0..7
+        "7-14 days" -> days in 8..14
+        "14+ days" -> days > 14
+        else -> expiryText.contains(timeFilter, ignoreCase = true)
+    }
+}
+
+private fun matchesRelationshipFilter(relationCategory: String?, filterLabel: String): Boolean {
+    val category = relationCategory?.trim().orEmpty()
+    if (category.isEmpty()) return false
+    val token = filterLabel.replace(TRAILING_COUNT_REGEX, "").trim()
+    return when {
+        token.equals("Friends", ignoreCase = true) ->
+            category.contains("Friend", ignoreCase = true)
+        token.equals("Random/Others", ignoreCase = true) ->
+            category.contains("Random", ignoreCase = true) || category.contains("Other", ignoreCase = true)
+        else -> category.contains(token, ignoreCase = true)
+    }
 }

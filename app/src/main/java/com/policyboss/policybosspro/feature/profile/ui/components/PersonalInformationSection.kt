@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.policyboss.policybosspro.feature.dummyData.AppDummyData
 import com.policyboss.policybosspro.feature.profile.model.PersonalInformation
 import com.policyboss.policybosspro.ui.theme.AppColors
 
@@ -144,7 +145,7 @@ fun PersonalInformationSection(
 @Composable
 private fun PersonalInformationSectionPreview() {
     PersonalInformationSection(
-        personalInfo = PersonalInformation(),
+        personalInfo = AppDummyData.defaultUserProfile.personalInfo,
         onEditClick = {}
     )
 }

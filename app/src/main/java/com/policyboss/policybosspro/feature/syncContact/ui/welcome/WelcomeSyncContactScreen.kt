@@ -377,28 +377,11 @@ fun Slide4Content(
     modifier: Modifier = Modifier
 ) {
     var showDetailsDialog by rememberSaveable { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
-    val howItWorksText = remember {
-        buildAnnotatedString {
-            append("To understand how it works & more details, ")
-            withLink(
-                LinkAnnotation.Clickable(
-                    tag = "SYNC_CONTACT_DETAILS",
-                    styles = TextLinkStyles(
-                        style = SpanStyle(
-                            color = AppColors.Primary,
-                            fontWeight = FontWeight.Bold,
-                            textDecoration = TextDecoration.Underline
-                        )
-                    ),
-                    linkInteractionListener = {
-                        showDetailsDialog = true
-                    }
-                )
-            ) {
-                append("Click Here")
-            }
-        }
+    // Automatically scroll to bottom so the user immediately sees the agreement checkboxes
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        scrollState.animateScrollTo(scrollState.maxValue)
     }
 
     if (showDetailsDialog) {
@@ -410,7 +393,7 @@ fun Slide4Content(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -436,8 +419,8 @@ fun Slide4Content(
         Image(
             painter = painterResource(id = R.drawable.synccontactlogo),
             contentDescription = "Sync Contacts Illustration",
-            modifier = Modifier.height(100.dp),
-            contentScale = ContentScale.Fit
+            modifier = Modifier.height(120.dp),
+            contentScale = ContentScale.FillHeight
         )
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -463,13 +446,31 @@ fun Slide4Content(
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 20.sp
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Text with "Click Here" placed on a new line
                 Text(
-                    text = howItWorksText,
+                    text = "To understand how it works & more details:",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp,
-                    modifier = Modifier.fillMaxWidth()
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Click Here",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = AppColors.Primary,
+                        fontWeight = FontWeight.Bold,
+                        textDecoration = TextDecoration.Underline
+                    ),
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = "Open Sync Contact Details Dialog",
+                            onClick = { showDetailsDialog = true }
+                        )
+                        .padding(vertical = 4.dp)
                 )
             }
         }
@@ -488,7 +489,7 @@ fun Slide4Content(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "If you wish to stop or discontinue sync of new contacts, toggle it off under App Settings.",
+            text = "If you wish to stop or discontinue sync of new contacts,simply toggle to switch off under 'Settings' of app.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 17.sp,
@@ -497,14 +498,17 @@ fun Slide4Content(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Compact "Manage under App Settings" action link (avoids TextButton's 48.dp phantom gap)
+        // "Manage under App Settings" — font size decreased
         CompactActionLink(
             text = "Manage under App Settings",
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            ),
             onClick = onOpenSettings
         )
 
-        // Compact Footer Links (Terms & Privacy)
+        // Footer Links (Terms & Privacy) — font size increased
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
@@ -512,18 +516,24 @@ fun Slide4Content(
         ) {
             CompactActionLink(
                 text = "Terms & Conditions",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 onClick = { onOpenUrl(SyncContactUrls.TERMS_AND_CONDITIONS) }
             )
             Text(
                 text = "|",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-                modifier = Modifier.padding(horizontal = 2.dp)
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
             CompactActionLink(
                 text = "Privacy Policy",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 onClick = { onOpenUrl(SyncContactUrls.PRIVACY_POLICY) }
             )
         }

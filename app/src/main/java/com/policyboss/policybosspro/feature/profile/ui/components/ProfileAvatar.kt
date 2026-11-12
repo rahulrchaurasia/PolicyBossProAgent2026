@@ -41,7 +41,7 @@ fun ProfileAvatar(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = initials,
+            text = initials.ifBlank { "PB" },
             color = AppColors.White,
             fontSize = (size.value * 0.35f).sp,
             fontWeight = FontWeight.SemiBold
@@ -52,6 +52,6 @@ fun ProfileAvatar(
 @Preview(showBackground = true)
 @Composable
 private fun ProfileAvatarPreview() {
-    ProfileAvatar(initials = "DD")
+    ProfileAvatar(initials = "RC")
 }
 

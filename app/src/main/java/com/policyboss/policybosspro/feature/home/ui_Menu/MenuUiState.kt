@@ -1,33 +1,33 @@
 package com.policyboss.policybosspro.feature.home.ui_Menu
 
+import com.policyboss.policybosspro.core.utils.UserProfileParser
+
 data class MenuUiState(
     val userName: String = "",
+    val initials: String = "",
     val userSsId: String = "",
     val userFbaId: String = "",
+    val userDesignation: String = "",
+    val userType: String = "",
     val appVersion: String = "",
     val isLoggingOut: Boolean = false,
     val showLogoutDialog: Boolean = false,
     val logoutError: String? = null
 ) {
     val displayName: String
-        get() = userName.takeIf { it.isNotBlank() && it != "Guest User" } ?: "Dinesh Das"
+        get() = userName.takeIf { it.isNotBlank() && it != "Guest User" } ?: "Guest User"
 
     val displaySsId: String
-        get() = userSsId.takeIf { it.isNotBlank() && it != "0" }?.let { if (it.startsWith("#")) it else "#$it" } ?: "#123456"
+        get() = userSsId.takeIf { it.isNotBlank() && it != "0" }?.let { if (it.startsWith("#")) it else "#$it" } ?: "NA"
 
     val displayFbaId: String
-        get() = userFbaId.takeIf { it.isNotBlank() && it != "0" }?.let { if (it.startsWith("#")) it else "#$it" } ?: "#123456"
+        get() = userFbaId.takeIf { it.isNotBlank() && it != "0" }?.let { if (it.startsWith("#")) it else "#$it" } ?: "NA"
 
     val userInitials: String
-        get() {
-            val name = displayName.trim()
-            val parts = name.split("\\s+".toRegex()).filter { it.isNotBlank() }
-            return when {
-                parts.isEmpty() -> "DD"
-                parts.size == 1 -> parts[0].take(2).uppercase()
-                else -> "${parts[0].first()}${parts[1].first()}".uppercase()
-            }
-        }
+        get() = initials.takeIf { it.isNotBlank() }
+            ?: UserProfileParser.extractInitials(
+                fullName = userName.takeIf { it.isNotBlank() && it != "Guest User" }.orEmpty()
+            )
 }
 
 sealed interface MenuAction {

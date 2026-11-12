@@ -38,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.feature.dummyData.AppDummyData
 import com.policyboss.policybosspro.feature.profile.model.DisplayInformation
 import com.policyboss.policybosspro.ui.theme.AppColors
 
@@ -191,7 +192,7 @@ fun DisplayInformationSection(
 @Composable
 private fun DisplayInformationSectionUncheckedPreview() {
     DisplayInformationSection(
-        displayInfo = DisplayInformation(),
+        displayInfo = AppDummyData.defaultUserProfile.displayInfo,
         useSameAsPosp = false,
         onToggleUseSameAsPosp = {},
         onEditClick = {}
@@ -202,7 +203,7 @@ private fun DisplayInformationSectionUncheckedPreview() {
 @Composable
 private fun DisplayInformationSectionCheckedPreview() {
     DisplayInformationSection(
-        displayInfo = DisplayInformation(),
+        displayInfo = AppDummyData.defaultUserProfile.displayInfo,
         useSameAsPosp = true,
         onToggleUseSameAsPosp = {},
         onEditClick = {}
