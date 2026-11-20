@@ -42,6 +42,9 @@ android {
         viewBinding = true
         buildConfig = true
     }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // Configure Kotlin JVM target at the top level in AGP 9+

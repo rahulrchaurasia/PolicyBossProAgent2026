@@ -32,11 +32,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.policyboss.policybosspro.R
 import com.policyboss.policybosspro.feature.dummyData.AppDummyData
 import com.policyboss.policybosspro.feature.home.model.menu.QuoteTabItem
+import com.policyboss.policybosspro.feature.home.util.VehicleRegistrationValidator
 import com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton
+import com.policyboss.policybosspro.ui.components.textfield.VehicleRegistrationTextField
 import com.policyboss.policybosspro.ui.components.text.TextWithChevron
 import com.policyboss.policybosspro.ui.theme.AppColors
 import com.policyboss.policybosspro.ui.theme.badgeMicro
@@ -52,7 +59,11 @@ fun GetQuotesCard(
     onRegistrationChange: (String) -> Unit,
     onGetQuoteClick: () -> Unit,
     onNoRegistrationClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholder: String = "Enter registration number",
+    isGetQuotesEnabled: Boolean = true,
+    isError: Boolean = false,
+    errorMessage: String? = null
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -138,32 +149,24 @@ fun GetQuotesCard(
                 }
             }
 
-            // Registration Input Field
-            OutlinedTextField(
+            // Reusable Dynamic Software Keyboard Vehicle Registration Field
+            VehicleRegistrationTextField(
                 value = registrationNumber,
                 onValueChange = onRegistrationChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "Enter registration number",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = AppColors.TextPlaceholder
-                    )
-                },
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = AppColors.BorderSecondary,
-                    focusedBorderColor = AppColors.PrimaryBlue,
-                    focusedTextColor = AppColors.TextPrimary,
-                    unfocusedTextColor = AppColors.TextPrimary
-                )
+                placeholder = placeholder,
+                isError = isError,
+                errorMessage = errorMessage,
+                allowBhSeries = VehicleRegistrationValidator.allowsBhSeries(selectedTab),
+                imeAction = ImeAction.Done,
+                onDone = onGetQuoteClick
             )
 
             // Get Quotes Button
             PrimaryCTAButton(
                 text = "Get quotes",
                 onClick = onGetQuoteClick,
+                enabled = isGetQuotesEnabled,
                 containerColor = AppColors.PrimaryBlue,
                 contentColor = AppColors.White,
                 arrowBackgroundColor = AppColors.White,

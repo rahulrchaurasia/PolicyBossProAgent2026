@@ -13,6 +13,7 @@ import com.policyboss.policybosspro.feature.home.model.home.RenewalOption
 import com.policyboss.policybosspro.feature.home.model.homeState.HomeAction
 import com.policyboss.policybosspro.feature.home.model.homeState.HomeUiEvent
 import com.policyboss.policybosspro.feature.home.model.homeState.HomeUiState
+import com.policyboss.policybosspro.feature.home.util.VehicleRegistrationValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -290,12 +291,23 @@ class HomeViewModel @Inject constructor(
             }
 
             is HomeAction.OnRegistrationNumberChange -> {
-                val formatted = action.regNo.uppercase().filter { it.isLetterOrDigit() }.take(10)
-                _uiState.update { it.copy(registrationNumber = formatted) }
+                val allowBh = VehicleRegistrationValidator.allowsBhSeries(_uiState.value.selectedQuoteTab)
+                val formatted = VehicleRegistrationValidator.sanitizeInput(action.regNo, allowBhSeries = allowBh)
+                _uiState.update {
+                    it.copy(
+                        registrationNumber = formatted,
+                        registrationError = null
+                    )
+                }
             }
 
             is HomeAction.OnQuoteTabSelected -> {
-                _uiState.update { it.copy(selectedQuoteTab = action.tabTitle) }
+                _uiState.update {
+                    it.copy(
+                        selectedQuoteTab = action.tabTitle,
+                        registrationError = null
+                    )
+                }
             }
 
             is HomeAction.OnLeadsTabSelected -> {
@@ -303,12 +315,36 @@ class HomeViewModel @Inject constructor(
             }
 
             is HomeAction.OnGetQuotesClick -> {
-                if (action.regNo.isBlank()) {
-                    sendEvent(HomeUiEvent.ShowSnackbar("Please enter a registration number"))
-                } else if (!connectivityObserver.isCurrentlyConnected()) {
+                val tab = action.tab.ifBlank { _uiState.value.selectedQuoteTab }
+                val regNo = action.regNo.ifBlank { _uiState.value.registrationNumber }
+
+                val validationError = VehicleRegistrationValidator.getValidationError(tab, regNo)
+                if (validationError != null) {
+                    _uiState.update { it.copy(registrationError = validationError) }
+                    sendEvent(HomeUiEvent.ShowSnackbar(validationError))
+                    return
+                }
+
+                _uiState.update { it.copy(registrationError = null) }
+
+                if (!connectivityObserver.isCurrentlyConnected()) {
                     sendEvent(HomeUiEvent.ShowSnackbar("Internet connection required to fetch live quotes."))
-                } else {
-                    sendEvent(HomeUiEvent.ShowSnackbar("Fetching quotes for ${action.regNo} (${action.tab})"))
+                    return
+                }
+
+                when (tab.uppercase()) {
+                    "CAR" -> {
+                        sendEvent(HomeUiEvent.NavigateToCarQuotes(regNo))
+                    }
+                    "TW", "TWO WHEELER", "TWO-WHEELER" -> {
+                        sendEvent(HomeUiEvent.ShowSnackbar("Two-wheeler insurance quotes coming soon for $regNo"))
+                    }
+                    "CV", "COMMERCIAL VEHICLE" -> {
+                        sendEvent(HomeUiEvent.ShowSnackbar("Fetching quotes for $regNo ($tab)"))
+                    }
+                    else -> {
+                        sendEvent(HomeUiEvent.ShowSnackbar("Fetching quotes for $regNo ($tab)"))
+                    }
                 }
             }
 

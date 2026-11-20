@@ -27,6 +27,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,6 +49,7 @@ fun AppOutlinedTextField(
 
     // ⭐ ADDED: Controls the background color, defaults to transparent
     containerColor: Color = Color.Transparent,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp),
 
     keyboardType: KeyboardType = KeyboardType.Text,
 
@@ -62,6 +64,8 @@ fun AppOutlinedTextField(
     minLines: Int = 1, // ⭐ ADDED: Allows the field to start larger for multi-line inputs
 
     maxLines: Int = Int.MAX_VALUE, // ⭐ ADDED: Defaults to infinity so it doesn't break existing fields
+
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 
     // =========================================
     // VALIDATION
@@ -119,8 +123,9 @@ fun AppOutlinedTextField(
 
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
+            visualTransformation = visualTransformation,
 
-            shape = RoundedCornerShape(16.dp),
+            shape = shape,
 
             // ⭐ RESTORED YOUR ENTIRE ORIGINAL COLORS BLOCK
             colors = OutlinedTextFieldDefaults.colors(

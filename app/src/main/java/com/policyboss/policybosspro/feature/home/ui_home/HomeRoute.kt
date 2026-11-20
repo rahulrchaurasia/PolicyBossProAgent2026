@@ -38,6 +38,10 @@ fun HomeRoute(
     LaunchedEffect(viewModel.uiEvent) {
         viewModel.uiEvent.collect { event ->
             when (event) {
+                is HomeUiEvent.NavigateToCarQuotes -> {
+                    onGetQuoteClick(event.registrationNumber)
+                }
+
                 is HomeUiEvent.ShowSnackbar -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
@@ -83,9 +87,6 @@ fun HomeRoute(
                 is HomeAction.OnMenuClick -> onNavigateToMenu()
                 is HomeAction.OnGetQuotesClick -> {
                     viewModel.onAction(action)
-                    if (action.regNo.isNotBlank()) {
-                        onGetQuoteClick(action.regNo)
-                    }
                 }
                 is HomeAction.OnShareLeadClick -> {
                     viewModel.onAction(action)

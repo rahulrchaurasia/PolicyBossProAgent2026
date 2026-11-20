@@ -14,6 +14,7 @@ import com.policyboss.policybosspro.feature.home.model.menu.QuoteTabItem
 import com.policyboss.policybosspro.feature.home.model.policy.CuratedPolicy
 import com.policyboss.policybosspro.feature.home.model.vault.VaultPolicy
 import com.policyboss.policybosspro.feature.home.model.video.VideoModel
+import com.policyboss.policybosspro.feature.home.util.VehicleRegistrationValidator
 
 @Immutable
 data class HomeUiState(
@@ -29,6 +30,8 @@ data class HomeUiState(
     val quoteTabs: List<QuoteTabItem> = emptyList(),
     val selectedQuoteTab: String = "Car",
     val registrationNumber: String = "",
+    val registrationError: String? = null,
+    val isGetQuotesEnabled: Boolean = true,
 
     // Promo Banners Carousel
     val promoBanners: List<PromoBanner> = emptyList(),
@@ -97,4 +100,10 @@ data class HomeUiState(
 
     val isShimmerVisible: Boolean
         get() = showShimmer
+
+    val registrationPlaceholder: String
+        get() = VehicleRegistrationValidator.getPlaceholder(selectedQuoteTab)
+
+    val isRegistrationNumberValid: Boolean
+        get() = VehicleRegistrationValidator.isValid(selectedQuoteTab, registrationNumber)
 }

@@ -65,6 +65,7 @@ viewModel.uiEvent.collect { event ->
 sealed interface HomeUiEvent {
     // Navigation events triggered by business logic success
     object NavigateToPrivilegeSuccess : HomeUiEvent
+    data class NavigateToCarQuotes(val registrationNumber: String) : HomeUiEvent
 
 //    data object ShowPolicyBottomSheet : HomeUiEvent
 //

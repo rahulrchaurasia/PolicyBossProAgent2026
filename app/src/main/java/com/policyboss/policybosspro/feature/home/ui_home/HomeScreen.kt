@@ -264,7 +264,11 @@ fun HomeScreen(
                     registrationNumber = uiState.registrationNumber,
                     onRegistrationChange = onRegistrationChange,
                     onGetQuoteClick = onGetQuoteClick,
-                    onNoRegistrationClick = onNoRegistrationClick
+                    onNoRegistrationClick = onNoRegistrationClick,
+                    placeholder = uiState.registrationPlaceholder,
+                    isGetQuotesEnabled = uiState.isGetQuotesEnabled,
+                    isError = uiState.registrationError != null,
+                    errorMessage = uiState.registrationError
                 )
             }
 

@@ -175,4 +175,8 @@ class AppNavigator( val navController: NavController) {
     inline fun <reified T : Any> getBackStackEntry(): NavBackStackEntry {
         return navController.getBackStackEntry<T>()
     }
+
+    inline fun <reified T : Any> findBackStackEntryOrNull(): NavBackStackEntry? {
+        return runCatching { navController.getBackStackEntry<T>() }.getOrNull()
+    }
 }

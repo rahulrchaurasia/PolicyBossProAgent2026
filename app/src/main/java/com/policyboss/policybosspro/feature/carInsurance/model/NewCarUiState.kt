@@ -1,5 +1,6 @@
 package com.policyboss.policybosspro.feature.carInsurance.model
 
+import androidx.compose.runtime.Immutable
 import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
 
 enum class OwnershipType(val displayName: String) {
@@ -13,32 +14,54 @@ enum class DatePickerType {
     POLICY_EXPIRY
 }
 
+@Immutable
+sealed interface QuoteFetchState {
+    data object Idle : QuoteFetchState
+    data object Loading : QuoteFetchState
+    data class Success(
+        val quoteId: String,
+        val quoteUrl: String?,
+        val quotesCount: Int = 0
+    ) : QuoteFetchState
+
+    data class Error(val message: String) : QuoteFetchState
+}
+
+@Immutable
 data class NewCarUiState(
-    val isNewCar: Boolean = true,
-    val vahanDetails: String = "HONDA CARS INDIA LTD, AMAZE 1.2 V CVT (I-VTEC), PETROL (1199 CC)",
-    val showVahanBanner: Boolean = true,
-    
+    val entryMode: CarEntryMode = CarEntryMode.WITHOUT_CAR_NUMBER,
+    val headerTitle: String = "New Car",
+    val registrationNumber: String = "",
+    val vahanData: String = "",
+    val vahanDetails: String = "",
+    val showVahanBanner: Boolean = false,
+    val carDetailsSummary: String = "",
+
     // Customer Name
     val customerName: String = "",
     val customerNameError: String? = null,
-    
+
     // Registration Place (RTO)
     val selectedRto: DropdownOption<String>? = null,
     val rtoOptions: List<DropdownOption<String>> = CarInsuranceData.rtoOptions,
-    
+
     // Ownership
     val ownershipType: OwnershipType = OwnershipType.INDIVIDUAL,
-    
+
     // Preferred Policy Type
-    val selectedPolicyType: String = "TP (3 Yr)",
-    val policyTypeOptions: List<String> = CarInsuranceData.newCarPolicyTypes,
-    
+    val policyType: PolicyType = PolicyType.COMPREHENSIVE,
+    val selectedPolicyType: String = policyType.displayName,
+    val policyTypeOptions: List<String> = CarInsuranceData.existingCarPolicyTypes,
+
     // Existing Policy Section (For rollover / non-new car)
+    val isNewCar: Boolean = true,
     val hasExistingPolicy: Boolean = true,
     val selectedInsurer: DropdownOption<String>? = null,
     val insurerOptions: List<DropdownOption<String>> = CarInsuranceData.insurerOptions,
+    val selectedTpInsurer: DropdownOption<String>? = null,
+    val tpInsurerOptions: List<DropdownOption<String>> = CarInsuranceData.insurerOptions,
     val policyExpiryDate: String = "",
-    
+
     // Car Specs
     val selectedModel: DropdownOption<String>? = null,
     val modelOptions: List<DropdownOption<String>> = CarInsuranceData.carModels,
@@ -46,24 +69,84 @@ data class NewCarUiState(
     val variantOptions: List<DropdownOption<String>> = CarInsuranceData.defaultVariants,
     val selectedFuel: DropdownOption<String>? = null,
     val fuelOptions: List<DropdownOption<String>> = CarInsuranceData.fuelOptions,
-    
+
     // Dates
     val registrationDate: String = "",
     val manufacturingDate: String = "",
-    
+    val manufacturingMonth: String = "Jan",
+    val manufacturingYear: String = "2021",
+    val manufacturingMonths: List<String> = CarInsuranceData.months,
+    val manufacturingYears: List<String> = CarInsuranceData.years,
+
     // Claims & NCB
-    val hasClaim: Boolean = true,
+    val hasClaim: Boolean = false,
     val selectedNcb: DropdownOption<String>? = DropdownOption("0", "0%"),
     val ncbOptions: List<DropdownOption<String>> = CarInsuranceData.ncbOptions,
-    
+
     // Consent
     val consentGiven: Boolean = true,
-    
-    // UI controls
+
+    // UI controls & Quote Operation Lifecycle
     val activeDatePicker: DatePickerType? = null,
-    val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val quoteState: QuoteFetchState = QuoteFetchState.Idle,
+    val errorMessage: String? = null,
+
+    // ==========================================
+    // Motor Quote Results State
+    // ==========================================
+    val quotes: List<MotorQuote> = emptyList(),
+    val isZextraBundleEnabled: Boolean = true,
+    val cpaNoticeText: String = "CPA: Don't have Personal Accident cover",
+    val expandedAddOnQuoteIds: Set<String> = setOf("ACKO-01"),
+    val selectedAddOnsByQuoteId: Map<String, Set<String>> = emptyMap(),
+    val selectedQuotesForComparison: Set<String> = emptySet(),
+    val selectedSortOption: MotorQuoteSortOption = MotorQuoteSortOption.RECOMMENDED,
+    val showSortSheet: Boolean = false,
+    val showFilterSheet: Boolean = false,
+    val showFeedbackDialog: Boolean = false,
+    val feedbackRating: Int = 5,
+    val feedbackText: String = ""
 ) {
+    val isLoading: Boolean
+        get() = quoteState is QuoteFetchState.Loading
+
+    val displayCustomerFirstName: String
+        get() = customerName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
+
+    val existingPolicyQuestionLabel: String
+        get() = if (policyType == PolicyType.TP_ONLY) {
+            "Do You Have Existing Policy?"
+        } else {
+            "Do You Have Existing Comprehensive Policy?"
+        }
+
+    val isComprehensivePolicy: Boolean
+        get() = policyType == PolicyType.COMPREHENSIVE
+
+    val isTpPolicy: Boolean
+        get() = policyType == PolicyType.TP_ONLY
+
+    val isSaodPolicy: Boolean
+        get() = policyType == PolicyType.OD_ONLY
+
+    val shouldShowExistingPolicySection: Boolean
+        get() = !isNewCar && (entryMode == CarEntryMode.WITH_CAR_NUMBER || !isNewCar)
+
+    val shouldShowExpiryDate: Boolean
+        get() = shouldShowExistingPolicySection && hasExistingPolicy
+
+    val shouldShowPreviousInsurer: Boolean
+        get() = shouldShowExistingPolicySection && hasExistingPolicy && policyType == PolicyType.COMPREHENSIVE
+
+    val shouldShowTpInsurer: Boolean
+        get() = shouldShowExistingPolicySection && hasExistingPolicy && policyType == PolicyType.OD_ONLY
+
+    val shouldShowClaimAndNcb: Boolean
+        get() = shouldShowExistingPolicySection && hasExistingPolicy && (policyType == PolicyType.OD_ONLY || policyType == PolicyType.COMPREHENSIVE)
+
+    val shouldShowClaimAndNcbSection: Boolean
+        get() = shouldShowClaimAndNcb
+
     val isFormValid: Boolean
         get() {
             if (customerName.trim().isEmpty()) return false
@@ -71,13 +154,70 @@ data class NewCarUiState(
             if (selectedModel == null) return false
             if (selectedVariant == null) return false
             if (selectedFuel == null) return false
-            if (registrationDate.isBlank()) return false
-            if (manufacturingDate.isBlank()) return false
-            if (!isNewCar && hasExistingPolicy) {
-                if (selectedInsurer == null) return false
-                if (policyExpiryDate.isBlank()) return false
+            if ((entryMode == CarEntryMode.WITH_CAR_NUMBER || !isNewCar) && registrationDate.isBlank()) return false
+            if (manufacturingMonth.isBlank() || manufacturingYear.isBlank()) return false
+            if (shouldShowExistingPolicySection && hasExistingPolicy) {
+                if (shouldShowExpiryDate && policyExpiryDate.isBlank()) return false
+                if (shouldShowPreviousInsurer && selectedInsurer == null) return false
+                if (shouldShowTpInsurer && selectedTpInsurer == null) return false
             }
             if (!consentGiven) return false
             return true
+        }
+
+    val totalQuotesCount: Int
+        get() = quotes.size.takeIf { it > 0 }
+            ?: (quoteState as? QuoteFetchState.Success)?.quotesCount
+            ?: 8
+
+    val minPremium: Int
+        get() = quotes.minOfOrNull { it.effectivePremium(isZextraBundleEnabled) } ?: 6403
+
+    val maxEarnings: Int
+        get() = quotes.maxOfOrNull { it.effectiveEarnings(isZextraBundleEnabled) } ?: 1403
+
+    val recommendedQuote: MotorQuote?
+        get() = sortedQuotes.firstOrNull { it.isRecommended } ?: sortedQuotes.firstOrNull()
+
+    val otherQuotes: List<MotorQuote>
+        get() {
+            val rec = recommendedQuote
+            return if (rec != null) {
+                sortedQuotes.filter { it.id != rec.id }
+            } else {
+                sortedQuotes
+            }
+        }
+
+    val sortedQuotes: List<MotorQuote>
+        get() {
+            val effectiveList = if (quotes.isEmpty()) MotorQuoteDefaults.generateDefaultQuotes() else quotes
+            return when (selectedSortOption) {
+                MotorQuoteSortOption.RECOMMENDED -> effectiveList.sortedWith(
+                    compareByDescending<MotorQuote> { it.isRecommended }
+                        .thenBy { it.effectivePremium(isZextraBundleEnabled) }
+                )
+                MotorQuoteSortOption.LOWEST_PREMIUM -> effectiveList.sortedBy {
+                    it.effectivePremium(isZextraBundleEnabled)
+                }
+                MotorQuoteSortOption.HIGHEST_EARNINGS -> effectiveList.sortedByDescending {
+                    it.effectiveEarnings(isZextraBundleEnabled)
+                }
+                MotorQuoteSortOption.BEST_CLAIM_RATIO -> effectiveList.sortedByDescending {
+                    it.benefits.firstOrNull { b -> b.contains("%") }
+                        ?.filter { c -> c.isDigit() }
+                        ?.toIntOrNull() ?: 0
+                }
+            }
+        }
+
+    val vehicleSummaryText: String
+        get() {
+            val modelName = selectedModel?.label ?: "Kia Seltos"
+            val fuelName = selectedFuel?.label ?: "Diesel"
+            val variantName = selectedVariant?.label ?: "Plus 1.5 GTX AT (1493CC)"
+            val policyName = if (selectedPolicyType.isNotBlank()) selectedPolicyType else "Comprehensive"
+            val ncbText = selectedNcb?.label ?: "0%"
+            return "$modelName • $fuelName • $variantName • $policyName • NCB status: $ncbText"
         }
 }

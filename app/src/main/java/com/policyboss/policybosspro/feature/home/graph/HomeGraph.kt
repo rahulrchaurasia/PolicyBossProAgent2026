@@ -1,11 +1,17 @@
 package com.policyboss.policybosspro.feature.home.graph
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import com.policyboss.policybosspro.anim.NavigationAnimations
+import com.policyboss.policybosspro.feature.carInsurance.ui.NewCarRoute
+import com.policyboss.policybosspro.feature.carInsurance.ui.QuoteLoadingRoute
+import com.policyboss.policybosspro.feature.carInsurance.ui.results.MotorQuoteResultsRoute
+import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
 import com.policyboss.policybosspro.feature.home.ui_home.HomeRoute
 import com.policyboss.policybosspro.feature.home.ui_Menu.MenuRoute
 import com.policyboss.policybosspro.feature.syncContact.ui.SyncContactsRoute
@@ -50,7 +56,12 @@ fun NavGraphBuilder.homeGraph(
                     appNavigator.navigateTo(Dest.Profile) // Adjust based on your AppNavigator setup
                 },
                 onGetQuoteClick = { registrationNumber ->
-                    // Handle get quote click
+                    appNavigator.navigateTo(
+                        Dest.NewCarInsurance(
+                            isNewCar = false,
+                            carNumber = registrationNumber
+                        )
+                    )
                 },
                 onNavigateToMenu = {
                     appNavigator.navigateTo(Dest.Menu)
@@ -102,16 +113,72 @@ fun NavGraphBuilder.homeGraph(
             popExitTransition = { NavigationAnimations.slideOutRight }
         ) { backStackEntry ->
             val route = backStackEntry.toRoute<Dest.NewCarInsurance>()
-            com.policyboss.policybosspro.feature.carInsurance.ui.NewCarRoute(
+            val viewModel: NewCarViewModel = hiltViewModel(backStackEntry)
+            NewCarRoute(
                 isNewCar = route.isNewCar,
+                carNumber = route.carNumber,
+                viewModel = viewModel,
                 onNavigateBack = {
                     appNavigator.navigateBack()
                 },
-                onNavigateToQuotes = { quoteId, quoteUrl ->
-                    if (!quoteUrl.isNullOrBlank()) {
-                        appNavigator.navigateTo(Dest.CommonWebView(url = quoteUrl, title = "Car Insurance Quotes"))
-                    } else {
-                        appNavigator.navigateBack()
+                onNavigateToQuoteLoading = {
+                    appNavigator.navigateTo(Dest.CarQuoteLoading) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable<Dest.CarQuoteLoading>(
+            enterTransition = { NavigationAnimations.fadeIn },
+            exitTransition = { NavigationAnimations.fadeOut },
+            popEnterTransition = { NavigationAnimations.fadeIn },
+            popExitTransition = { NavigationAnimations.fadeOut }
+        ) { backStackEntry ->
+            val ownerEntry = remember(backStackEntry) {
+                appNavigator.findBackStackEntryOrNull<Dest.NewCarInsurance>() ?: backStackEntry
+            }
+            val viewModel: NewCarViewModel = hiltViewModel(ownerEntry)
+            QuoteLoadingRoute(
+                viewModel = viewModel,
+                onCloseLoading = {
+                    appNavigator.navigateBack()
+                },
+                onNavigateToQuotes = { _, _ ->
+                    appNavigator.navigateTo(Dest.MotorQuoteResults) {
+                        popUpTo<Dest.CarQuoteLoading> { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable<Dest.MotorQuoteResults>(
+            enterTransition = { NavigationAnimations.slideInRight },
+            exitTransition = { NavigationAnimations.slideOutLeft },
+            popEnterTransition = { NavigationAnimations.slideInLeft },
+            popExitTransition = { NavigationAnimations.slideOutRight }
+        ) { backStackEntry ->
+            val ownerEntry = remember(backStackEntry) {
+                appNavigator.findBackStackEntryOrNull<Dest.NewCarInsurance>() ?: backStackEntry
+            }
+            val viewModel: NewCarViewModel = hiltViewModel(ownerEntry)
+            MotorQuoteResultsRoute(
+                viewModel = viewModel,
+                onNavigateBack = {
+                    appNavigator.navigateBack()
+                },
+                onNavigateToForm = {
+                    appNavigator.navigateBack()
+                },
+                onNavigateToUrl = { url, title ->
+                    appNavigator.navigateTo(
+                        Dest.CommonWebView(
+                            url = url,
+                            title = title
+                        )
+                    ) {
+                        launchSingleTop = true
                     }
                 }
             )

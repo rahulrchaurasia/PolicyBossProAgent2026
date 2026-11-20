@@ -139,8 +139,15 @@ sealed class Dest {
 
     @Serializable
     data class NewCarInsurance(
-        val isNewCar: Boolean = true
+        val isNewCar: Boolean = true,
+        val carNumber: String? = null
     ) : Dest()
+
+    @Serializable
+    data object CarQuoteLoading : Dest()
+
+    @Serializable
+    data object MotorQuoteResults : Dest()
 
     //endregion
 

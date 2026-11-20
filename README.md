@@ -60,3 +60,54 @@ My final recommendation
 For your app, I would choose:
 
 Common API → CommonRepository → Room → Feature Repositories → Feature ViewModels → Compose UI.
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+>
+    How the complete data flow works :---->
+   ...................................
+   Let's assume your Horizon API returns common application data.
+   Step 1 — User logs in
+   Login success → AppStartupCoordinator
+   Step 2 — Fetch shared data
+   CommonRepository → Horizon API
+   Step 3 — Save the response
+   Map API DTOs → Room entities → DAOs
+   Step 4 — Feature repositories observe Room
+   HomeRepository
+   LeadsRepository
+   DashboardRepository
+   SalesRepository
+   Step 5 — ViewModels expose UI state
+   StateFlow → Compose UI
+   What happens when the user switches tabs?
+   Example:
+1. User opens Home.
+2. Shared API is fetched and stored in Room.
+3. User opens Leads.
+4. LeadsRepository reads Leads-related information from Room.
+5. User opens Dashboard.
+6. DashboardRepository reads Dashboard-related information from Room.
+7. User opens Sales.
+8. SalesRepository reads Sales-related information from Room.
+
+
+...................................
+     Why is this better?
+...................................
+Imagine a user directly opens the Sales tab after login.
+If Horizon API initialization is tied to HomeViewModel, you could end up with unnecessary dependencies on Home navigation.
+With AppStartupCoordinator, shared data initialization is independent of whichever tab the user opens.
+Also, do not block navigation unnecessarily while the network is unavailable. Let the features display cached Room data and refresh in the background.
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+9. How should we handle refresh and duplicate API calls?
+   I recommend a cache-first strategy.
+   Situation	Recommended behavior
+   First login	Fetch Horizon API
+   App reopened	Read Room immediately
+   Data is fresh	Avoid unnecessary API call
+   Data is expired	Fetch updated data
+   User pulls to refresh	Trigger refresh
+   Network unavailable	Continue showing cached data
+   User logs out	Clear user-specific cached records
+

@@ -1,3 +1,4 @@
+
 package com.policyboss.policybosspro.ui.components.radio
 
 import androidx.compose.animation.animateColorAsState
@@ -30,22 +31,20 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.ui.theme.AppColors
 import com.policyboss.policybosspro.ui.theme.PolicyBossTheme
 import com.policyboss.policybosspro.ui.theme.textPrimary
 
 /**
- * Modern, advanced customized Radio Button for PolicyBoss Pro.
+ * Modern, customized Radio Button for PolicyBoss Pro.
  *
  * Visual behavior:
- * - Unselected: A clean circle with a light border ([unselectedBorderColor]) and transparent center.
- * - Selected: When clicked, the circle becomes fully filled with [selectedColor]
- *   featuring a smooth spring scale animation and an optional light border ([selectedBorderColor]).
+ * - Unselected: Clean circle with a light border ([unselectedBorderColor]) and transparent center.
+ * - Selected: Smoothly filled with [selectedColor] (`AppColors.Primary`) framed by a crisp
+ *   tonal dark border ([selectedBorderColor] = `AppColors.PrimaryDark`) with a spring scale transition.
  */
 @Composable
 fun AppRadioButton(
@@ -56,14 +55,14 @@ fun AppRadioButton(
     size: Dp = 20.dp,
     selectedColor: Color = AppColors.Primary,
     unselectedBorderColor: Color = AppColors.BorderPrimary,
-    selectedBorderColor: Color = selectedColor,
-    borderWidth: Dp = 1.5.dp,
+    selectedBorderColor: Color = AppColors.PrimaryDark,
+    borderWidth: Dp = 1.75.dp,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 ) {
     val scale by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
         animationSpec = spring(
-            dampingRatio = 0.65f,
+            dampingRatio = 0.72f,
             stiffness = Spring.StiffnessMedium
         ),
         label = "fillScale"
@@ -110,21 +109,23 @@ fun AppRadioButton(
     ) {
         Canvas(modifier = Modifier.size(size)) {
             val strokePx = borderWidth.toPx()
-            val radius = size.toPx() / 2f
+            val outerRadius = size.toPx() / 2f
+            val borderCenterRadius = outerRadius - (strokePx / 2f)
 
-            // 1. When selected (or animating), draw the fully filled circle
+            // 1. Draw the filled circle inset inside the border stroke so spring bounce never bleeds outside
             if (scale > 0f) {
+                val maxFillRadius = (outerRadius - strokePx * 0.5f).coerceAtLeast(0f)
                 drawCircle(
                     color = animatedFillColor,
-                    radius = radius * scale,
+                    radius = (maxFillRadius * scale).coerceAtMost(borderCenterRadius),
                     style = Fill
                 )
             }
 
-            // 2. Draw the outer circle border
+            // 2. Draw the crisp outer tonal border (PrimaryDark when selected)
             drawCircle(
                 color = animatedBorderColor,
-                radius = radius - strokePx / 2f,
+                radius = borderCenterRadius,
                 style = Stroke(width = strokePx)
             )
         }
@@ -145,8 +146,8 @@ fun AppRadioButtonOption(
     size: Dp = 20.dp,
     selectedColor: Color = AppColors.Primary,
     unselectedBorderColor: Color = AppColors.BorderPrimary,
-    selectedBorderColor: Color = selectedColor,
-    borderWidth: Dp = 1.5.dp,
+    selectedBorderColor: Color = AppColors.PrimaryDark,
+    borderWidth: Dp = 1.75.dp,
     labelStyle: TextStyle = MaterialTheme.typography.bodyMedium,
     labelColor: Color = MaterialTheme.colorScheme.textPrimary,
     spacing: Dp = 8.dp,
@@ -185,8 +186,8 @@ fun AppRadioButtonOption(
     size: Dp = 20.dp,
     selectedColor: Color = AppColors.Primary,
     unselectedBorderColor: Color = AppColors.BorderPrimary,
-    selectedBorderColor: Color = selectedColor,
-    borderWidth: Dp = 1.5.dp,
+    selectedBorderColor: Color = AppColors.PrimaryDark,
+    borderWidth: Dp = 1.75.dp,
     spacing: Dp = 8.dp,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit
@@ -225,7 +226,7 @@ fun AppRadioButtonOption(
 // PREVIEWS
 // =============================================================================
 
-@Preview(name = "AppRadioButton - States", showBackground = true)
+@Preview(name = "AppRadioButton - Tonal Border States", showBackground = true)
 @Composable
 private fun AppRadioButtonPreview() {
     PolicyBossTheme {
@@ -239,13 +240,13 @@ private fun AppRadioButtonPreview() {
             ) {
                 AppRadioButtonOption(
                     selected = true,
-                    label = "Selected (Fully Filled)",
+                    label = "Selected (Primary + PrimaryDark Border)",
                     onClick = {}
                 )
 
                 AppRadioButtonOption(
                     selected = false,
-                    label = "Unselected (Light Border)",
+                    label = "Unselected",
                     onClick = {}
                 )
             }
@@ -256,17 +257,18 @@ private fun AppRadioButtonPreview() {
             ) {
                 AppRadioButtonOption(
                     selected = true,
-                    label = "Male",
+                    label = "Disabled Selected",
+                    enabled = false,
                     onClick = {}
                 )
 
                 AppRadioButtonOption(
                     selected = false,
-                    label = "Female",
+                    label = "Disabled Unselected",
+                    enabled = false,
                     onClick = {}
                 )
             }
         }
     }
 }
-

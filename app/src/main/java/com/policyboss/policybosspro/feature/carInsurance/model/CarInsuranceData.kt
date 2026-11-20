@@ -6,21 +6,23 @@ import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
 object CarInsuranceData {
 
     val rtoOptions = listOf(
-        DropdownOption("MH-01", "Mumbai - MH01"),
-        DropdownOption("MH-02", "Mumbai (Andheri) - MH02"),
-        DropdownOption("MH-03", "Mumbai (Wadala) - MH03"),
-        DropdownOption("MH-04", "Thane - MH04"),
-        DropdownOption("MH-12", "Pune - MH12"),
-        DropdownOption("DL-01", "Delhi North - DL01"),
-        DropdownOption("DL-03", "Delhi South - DL03"),
-        DropdownOption("KA-01", "Bangalore Central - KA01"),
-        DropdownOption("KA-03", "Bangalore East - KA03"),
-        DropdownOption("GJ-01", "Ahmedabad - GJ01"),
-        DropdownOption("TN-01", "Chennai Central - TN01"),
-        DropdownOption("TS-09", "Hyderabad Central - TS09")
+        DropdownOption("RJ-14", "RJ14 - Jaipur"),
+        DropdownOption("MH-01", "MH01 - Mumbai"),
+        DropdownOption("MH-02", "MH02 - Mumbai (Andheri)"),
+        DropdownOption("MH-03", "MH03 - Mumbai (Wadala)"),
+        DropdownOption("MH-04", "MH04 - Thane"),
+        DropdownOption("MH-12", "MH12 - Pune"),
+        DropdownOption("DL-01", "DL01 - Delhi North"),
+        DropdownOption("DL-03", "DL03 - Delhi South"),
+        DropdownOption("KA-01", "KA01 - Bangalore Central"),
+        DropdownOption("KA-03", "KA03 - Bangalore East"),
+        DropdownOption("GJ-01", "GJ01 - Ahmedabad"),
+        DropdownOption("TN-01", "TN01 - Chennai Central"),
+        DropdownOption("TS-09", "TS09 - Hyderabad Central")
     )
 
     val carModels = listOf(
+        DropdownOption("KIA_SELTOS", "Kia Seltos"),
         DropdownOption("HONDA_AMAZE", "Honda Amaze"),
         DropdownOption("HONDA_CITY", "Honda City"),
         DropdownOption("MARUTI_SWIFT", "Maruti Suzuki Swift"),
@@ -29,11 +31,15 @@ object CarInsuranceData {
         DropdownOption("HYUNDAI_I20", "Hyundai i20"),
         DropdownOption("TATA_NEXON", "Tata Nexon"),
         DropdownOption("TATA_PUNCH", "Tata Punch"),
-        DropdownOption("KIA_SELTOS", "Kia Seltos"),
         DropdownOption("MAHINDRA_THAR", "Mahindra Thar")
     )
 
     val variantsByModel = mapOf(
+        "KIA_SELTOS" to listOf(
+            DropdownOption("SELTOS_PLUS_1.5_GTX_AT", "Plus 1.5 GTX AT - Diesel - (1493 CC)"),
+            DropdownOption("SELTOS_1.5_HTX_MT", "1.5 HTX MT (1497CC)"),
+            DropdownOption("SELTOS_1.5_GTX_DCT", "1.5 Turbo GTX+ DCT (1482CC)")
+        ),
         "HONDA_AMAZE" to listOf(
             DropdownOption("1.2_S_CVT", "1.2 S CVT (1198CC)"),
             DropdownOption("1.2_V_CVT", "1.2 V CVT (i-VTEC)"),
@@ -63,6 +69,7 @@ object CarInsuranceData {
     )
 
     val defaultVariants = listOf(
+        DropdownOption("SELTOS_PLUS_1.5_GTX_AT", "Plus 1.5 GTX AT - Diesel - (1493 CC)"),
         DropdownOption("1.2_S_CVT", "1.2 S CVT (1198CC)"),
         DropdownOption("1.2_V_CVT", "1.2 V CVT (i-VTEC)"),
         DropdownOption("1.2_VX_MT", "1.2 VX MT (1198CC)"),
@@ -70,13 +77,14 @@ object CarInsuranceData {
     )
 
     val fuelOptions = listOf(
-        DropdownOption("PETROL", "Petrol"),
         DropdownOption("DIESEL", "Diesel"),
+        DropdownOption("PETROL", "Petrol"),
         DropdownOption("CNG", "CNG"),
         DropdownOption("ELECTRIC", "Electric")
     )
 
     val insurerOptions = listOf(
+        DropdownOption("ORIENTAL", "ORIENTAL INSURANCE CO. LTD.", R.drawable.ic_acko_logo),
         DropdownOption("ACKO", "Acko General Insurance", R.drawable.ic_acko_logo),
         DropdownOption("TATA_AIG", "Tata AIG General Insurance", R.drawable.img_tata),
         DropdownOption("HDFC_ERGO", "HDFC ERGO General Insurance", R.drawable.ic_acko_logo),
@@ -95,12 +103,21 @@ object CarInsuranceData {
     )
 
     val newCarPolicyTypes = listOf(
-        "TP (3 Yr)",
-        "OD (1 Yr) + TP (3 Yr)"
+        "TP Only",
+        "OD Only",
+        "Comprehensive"
     )
 
     val existingCarPolicyTypes = listOf(
-        "Comprehensive",
-        "TP"
+        "TP Only",
+        "OD Only",
+        "Comprehensive"
     )
+
+    val months = listOf(
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    )
+
+    val years = (2026 downTo 2005).map { it.toString() }
 }

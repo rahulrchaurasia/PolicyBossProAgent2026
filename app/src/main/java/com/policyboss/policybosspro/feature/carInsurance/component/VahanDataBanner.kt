@@ -18,6 +18,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.ui.theme.AppColors
 
+/**
+ * Standardized Vahan Data Card displayed below the header in WITH_CAR_NUMBER flow.
+ * Elevated inside a subtle white card with 12.dp rounded corners, muted label,
+ * and bold brand blue specification text.
+ */
 @Composable
 fun VahanDataBanner(
     vahanDetails: String,
@@ -28,18 +33,18 @@ fun VahanDataBanner(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, AppColors.BorderSecondary),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = "Vahan Data:",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal,
                 color = AppColors.TextSecondary
             )
             Text(
@@ -47,7 +52,7 @@ fun VahanDataBanner(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = AppColors.PrimaryBlue,
-                lineHeight = 16.sp
+                lineHeight = 18.sp
             )
         }
     }
@@ -57,6 +62,7 @@ fun VahanDataBanner(
 @Composable
 private fun VahanDataBannerPreview() {
     VahanDataBanner(
-        vahanDetails = "HONDA CARS INDIA LTD, AMAZE 1.2 V CVT (I-VTEC), PETROL (1199 CC)"
+        vahanDetails = "HONDA CARS INDIA LTD, AMAZE 1.2 V CVT (I-VTEC), PETROL (1199 CC)",
+        modifier = Modifier.padding(16.dp)
     )
 }

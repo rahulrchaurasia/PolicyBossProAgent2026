@@ -12,46 +12,48 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
+import com.policyboss.policybosspro.ui.ObserveAsEvents
 
 @Composable
 fun NewCarRoute(
     isNewCar: Boolean,
     onNavigateBack: () -> Unit,
-    onNavigateToQuotes: (quoteId: String, quoteUrl: String?) -> Unit,
+    onNavigateToQuoteLoading: () -> Unit,
     modifier: Modifier = Modifier,
+    carNumber: String? = null,
     viewModel: NewCarViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(isNewCar) {
-        viewModel.init(isNewCar)
+    LaunchedEffect(isNewCar, carNumber) {
+        viewModel.init(isNewCar = isNewCar, carNumber = carNumber)
     }
 
-    LaunchedEffect(viewModel.uiEvent) {
-        viewModel.uiEvent.collect { event ->
-            when (event) {
-                is NewCarUiEvent.NavigateBack -> {
-                    onNavigateBack()
-                }
+    ObserveAsEvents(flow = viewModel.uiEvent) { event ->
+        when (event) {
+            is NewCarUiEvent.NavigateBack -> {
+                onNavigateBack()
+            }
 
-                is NewCarUiEvent.NavigateToQuotes -> {
-                    onNavigateToQuotes(event.quoteId, event.quoteUrl)
-                }
+            is NewCarUiEvent.NavigateToQuoteLoading -> {
+                onNavigateToQuoteLoading()
+            }
 
-                is NewCarUiEvent.ShowSnackbar -> {
-                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
-                }
+            is NewCarUiEvent.ShowSnackbar -> {
+                Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+            }
 
-                is NewCarUiEvent.OpenUrl -> {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(event.url))
-                    try {
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Cannot open URL", Toast.LENGTH_SHORT).show()
-                    }
+            is NewCarUiEvent.OpenUrl -> {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(event.url))
+                try {
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Cannot open URL", Toast.LENGTH_SHORT).show()
                 }
             }
+
+            else -> Unit
         }
     }
 
