@@ -1,5 +1,6 @@
-package com.policyboss.policybosspro.feature.carInsurance.ui.results
+package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,7 +58,7 @@ fun QuoteSummaryCard(
             ),
         shape = RoundedCornerShape(16.dp),
         color = AppColors.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Slate200)
+        border = BorderStroke(1.dp, AppColors.Slate200)
     ) {
         Column(
             modifier = Modifier

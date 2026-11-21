@@ -7,6 +7,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class CarEntryMode {
     WITH_CAR_NUMBER,
-    WITHOUT_CAR_NUMBER
+    WITHOUT_CAR_NUMBER,
+    NEW_CAR
 }
-

@@ -111,7 +111,7 @@ fun <T> GenericM3Dropdown(
                     Icon(
                         painter = painterResource(id = R.drawable.ic_chevron_down),
                         contentDescription = "Dropdown icon",
-                        tint = AppColors.TextSecondary,
+                        tint = if (enabled) AppColors.TextSecondary else Color(0xFF94A3B8),
                         modifier = Modifier
                             .size(20.dp)
                             .rotate(chevronRotation)
@@ -120,19 +120,19 @@ fun <T> GenericM3Dropdown(
                 textStyle = TextStyle(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Normal,
-                    color = if (enabled) AppColors.TextPrimary else AppColors.TextSecondary
+                    color = if (enabled) AppColors.TextPrimary else Color(0xFF64748B)
                 ),
                 shape = shape,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = containerColor,
                     unfocusedContainerColor = containerColor,
-                    disabledContainerColor = Color(0xFFF3F4F6),
+                    disabledContainerColor = Color(0xFFF1F5F9),
                     focusedBorderColor = AppColors.PrimaryBlue,
                     unfocusedBorderColor = AppColors.BorderSecondary,
-                    disabledBorderColor = AppColors.BorderSecondary,
+                    disabledBorderColor = Color(0xFFE2E8F0),
                     focusedTextColor = AppColors.TextPrimary,
                     unfocusedTextColor = AppColors.TextPrimary,
-                    disabledTextColor = AppColors.TextSecondary
+                    disabledTextColor = Color(0xFF64748B)
                 ),
                 singleLine = true,
                 modifier = Modifier

@@ -10,13 +10,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
 import com.policyboss.policybosspro.ui.ObserveAsEvents
 
 @Composable
 fun NewCarRoute(
-    isNewCar: Boolean,
+    entryMode: CarEntryMode,
     onNavigateBack: () -> Unit,
     onNavigateToQuoteLoading: () -> Unit,
     modifier: Modifier = Modifier,
@@ -26,8 +27,8 @@ fun NewCarRoute(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(isNewCar, carNumber) {
-        viewModel.init(isNewCar = isNewCar, carNumber = carNumber)
+    LaunchedEffect(entryMode, carNumber) {
+        viewModel.initForMode(entryMode = entryMode, carNumber = carNumber)
     }
 
     ObserveAsEvents(flow = viewModel.uiEvent) { event ->

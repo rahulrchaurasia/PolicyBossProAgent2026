@@ -1,4 +1,4 @@
-package com.policyboss.policybosspro.feature.carInsurance.ui.results
+package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.ui
 
 import android.content.Intent
 import android.widget.Toast

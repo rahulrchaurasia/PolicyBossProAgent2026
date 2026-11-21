@@ -33,6 +33,14 @@ data class CarQuoteRequest(
     val variant: String,
     @SerialName("fuel")
     val fuel: String,
+    @SerialName("make_id")
+    val makeId: String? = null,
+    @SerialName("model_id")
+    val modelId: String? = null,
+    @SerialName("fuel_id")
+    val fuelId: String? = null,
+    @SerialName("variant_id")
+    val variantId: String? = null,
     @SerialName("registration_date")
     val registrationDate: String,
     @SerialName("manufacturing_date")
@@ -41,6 +49,8 @@ data class CarQuoteRequest(
     val hasExistingPolicy: Boolean = false,
     @SerialName("previous_insurer")
     val previousInsurer: String? = null,
+    @SerialName("tp_insurer")
+    val tpInsurer: String? = null,
     @SerialName("policy_expiry_date")
     val policyExpiryDate: String? = null,
     @SerialName("has_claim")

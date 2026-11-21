@@ -44,7 +44,7 @@ fun PolicyTypeChipsSection(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "Preferred policy type",
+            text = "Select your preferred policy",
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             color = AppColors.TextPrimary

@@ -1,4 +1,4 @@
-package com.policyboss.policybosspro.feature.carInsurance.ui.results
+package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults

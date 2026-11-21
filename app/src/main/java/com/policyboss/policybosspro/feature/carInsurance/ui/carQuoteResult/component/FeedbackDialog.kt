@@ -1,4 +1,4 @@
-package com.policyboss.policybosspro.feature.carInsurance.ui.results
+package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

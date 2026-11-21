@@ -311,6 +311,7 @@ fun ClickableSelectorField(
     modifier: Modifier = Modifier,
     label: String = "",
     iconRes: Int? = null,
+    enabled: Boolean = true,
     isError: Boolean = false,
     errorMessage: String? = null
 ) {
@@ -332,6 +333,7 @@ fun ClickableSelectorField(
                 value = value,
                 onValueChange = {},
                 readOnly = true,
+                enabled = enabled,
                 placeholder = {
                     Text(
                         text = placeholder,
@@ -354,14 +356,14 @@ fun ClickableSelectorField(
                     Icon(
                         painter = painterResource(id = R.drawable.ic_chevron_down),
                         contentDescription = "Select",
-                        tint = AppColors.TextSecondary,
+                        tint = if (enabled) AppColors.TextSecondary else Color(0xFF94A3B8),
                         modifier = Modifier.size(20.dp)
                     )
                 },
                 textStyle = TextStyle(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Normal,
-                    color = AppColors.TextPrimary
+                    color = if (enabled) AppColors.TextPrimary else Color(0xFF64748B)
                 ),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -369,6 +371,10 @@ fun ClickableSelectorField(
                     unfocusedBorderColor = if (isError) AppColors.ErrorRed else AppColors.BorderSecondary,
                     focusedContainerColor = Color.White,
                     unfocusedContainerColor = Color.White,
+                    disabledBorderColor = Color(0xFFE2E8F0),
+                    disabledContainerColor = Color(0xFFF1F5F9),
+                    disabledTextColor = Color(0xFF64748B),
+                    disabledPlaceholderColor = AppColors.TextPlaceholder,
                     focusedTextColor = AppColors.TextPrimary,
                     unfocusedTextColor = AppColors.TextPrimary
                 ),
@@ -380,12 +386,14 @@ fun ClickableSelectorField(
             )
 
             // Transparent overlay intercepts click reliably without opening software keyboard
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onClick() }
-            )
+            if (enabled) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onClick() }
+                )
+            }
         }
 
         if (isError && errorMessage != null) {

@@ -7,11 +7,13 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,14 +21,18 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,20 +47,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.feature.carInsurance.component.CarDetailsBottomSheet
 import com.policyboss.policybosspro.feature.carInsurance.component.ClaimAndNcbSection
 import com.policyboss.policybosspro.feature.carInsurance.component.ConsentCheckboxSection
 import com.policyboss.policybosspro.feature.carInsurance.component.ExistingPolicySection
 import com.policyboss.policybosspro.feature.carInsurance.component.PolicyTypeChipsSection
 import com.policyboss.policybosspro.feature.carInsurance.component.RegisteredOnRadioGroup
+import com.policyboss.policybosspro.feature.carInsurance.component.TitledBorderCard
 import com.policyboss.policybosspro.feature.carInsurance.component.VahanDataBanner
+import com.policyboss.policybosspro.ui.components.radio.AppRadioButtonOption
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.CarInsuranceBottomSheet
 import com.policyboss.policybosspro.feature.carInsurance.model.CarInsuranceData
@@ -67,6 +78,7 @@ import com.policyboss.policybosspro.ui.components.bottomSheet.ClickableSelectorF
 import com.policyboss.policybosspro.ui.components.button.AppBackButton
 import com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton
 import com.policyboss.policybosspro.ui.components.datePicker.AppDatePickerDialog
+import com.policyboss.policybosspro.ui.components.datePicker.ClickableDateField
 import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
 import com.policyboss.policybosspro.ui.components.dropDown.GenericM3Dropdown
 import com.policyboss.policybosspro.ui.theme.AppColors
@@ -111,9 +123,9 @@ fun NewCarScreen(
                 Text(
                     text = uiState.headerTitle,
                     style = MaterialTheme.typography.titleLargeBold,
-                    fontSize = 24.sp,
+                    fontSize = 21.sp,
                     color = AppColors.TextPrimary,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
                 )
             }
         },
@@ -176,12 +188,15 @@ fun NewCarScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = AppColors.TextPrimary
                     )
+                    val isCustomerNameEditable = !uiState.isContinueWithCarNumber
                     OutlinedTextField(
                         value = uiState.customerName,
-                        onValueChange = { onAction(NewCarAction.OnCustomerNameChange(it)) },
+                        onValueChange = { if (isCustomerNameEditable) onAction(NewCarAction.OnCustomerNameChange(it)) },
+                        readOnly = !isCustomerNameEditable,
+                        enabled = isCustomerNameEditable,
                         placeholder = {
                             Text(
-                                text = "Enter full name",
+                                text = if (uiState.entryMode == CarEntryMode.NEW_CAR) "Enter Full Name" else "Enter full name",
                                 color = AppColors.TextPlaceholder,
                                 fontSize = 14.sp
                             )
@@ -189,7 +204,7 @@ fun NewCarScreen(
                         textStyle = TextStyle(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,
-                            color = AppColors.TextPrimary
+                            color = if (isCustomerNameEditable) AppColors.TextPrimary else Color(0xFF64748B)
                         ),
                         singleLine = true,
                         isError = uiState.customerNameError != null,
@@ -200,6 +215,10 @@ fun NewCarScreen(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AppColors.PrimaryBlue,
                             unfocusedBorderColor = AppColors.BorderSecondary,
+                            disabledBorderColor = Color(0xFFE2E8F0),
+                            disabledContainerColor = Color(0xFFF1F5F9),
+                            disabledTextColor = Color(0xFF64748B),
+                            disabledPlaceholderColor = AppColors.TextPlaceholder,
                             focusedContainerColor = Color.White,
                             unfocusedContainerColor = Color.White,
                             focusedTextColor = AppColors.TextPrimary,
@@ -211,49 +230,10 @@ fun NewCarScreen(
                     )
                 }
 
-                // 2. Car Details Box (Rendered when vehicle info is available)
-                if (uiState.entryMode == CarEntryMode.WITH_CAR_NUMBER || uiState.carDetailsSummary.isNotBlank()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Car Details",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppColors.TextPrimary
-                        )
-                        OutlinedTextField(
-                            value = uiState.carDetailsSummary.ifBlank {
-                                "${uiState.selectedModel?.label ?: "Kia Seltos"} - ${uiState.selectedVariant?.label ?: "Plus 1.5 GTX AT"} - ${uiState.selectedFuel?.label ?: "Diesel"}"
-                            },
-                            onValueChange = {},
-                            readOnly = true,
-                            textStyle = TextStyle(
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = AppColors.TextPrimary
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AppColors.BorderSecondary,
-                                unfocusedBorderColor = AppColors.BorderSecondary,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedTextColor = AppColors.TextPrimary,
-                                unfocusedTextColor = AppColors.TextPrimary
-                            ),
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
-                        )
-                    }
-                }
-
-                // 3. Registration Details (RTO) – Clickable Field Triggering Searchable Modal Bottom Sheet
-                ClickableSelectorField(
-                    label = "Registration details",
-                    value = uiState.selectedRto?.label ?: "",
-                    placeholder = "Select registration details",
-                    onClick = { activeBottomSheet = CarInsuranceBottomSheet.RTO },
+                // 2. Unified Car Details Selection Field across ALL modes
+                CarDetailsSelectorField(
+                    value = uiState.formattedCarDetails,
+                    onClick = { onAction(NewCarAction.OpenCarDetailsSheet) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -263,14 +243,42 @@ fun NewCarScreen(
                     onOwnershipSelected = { onAction(NewCarAction.OnOwnershipSelected(it)) }
                 )
 
-                // 5. Select your preferred policy (Single-line non-wrapping weighted tabs)
-                PolicyTypeChipsSection(
-                    options = uiState.policyTypeOptions,
-                    selectedPolicyType = uiState.selectedPolicyType,
-                    onPolicyTypeSelected = { onAction(NewCarAction.OnPolicyTypeSelected(it)) }
-                )
+                // 5. Select your preferred policy
+                if (uiState.entryMode == CarEntryMode.NEW_CAR) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Select your preferred policy",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppColors.TextPrimary
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val newCarOptions = listOf("TP (3 Yr)", "OD (1 Yr) + TP (3 Yr)")
+                            newCarOptions.forEach { option ->
+                                AppRadioButtonOption(
+                                    selected = uiState.selectedPolicyType == option,
+                                    label = option,
+                                    onClick = { onAction(NewCarAction.OnPolicyTypeSelected(option)) }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    PolicyTypeChipsSection(
+                        options = uiState.policyTypeOptions,
+                        selectedPolicyType = uiState.selectedPolicyType,
+                        onPolicyTypeSelected = { onAction(NewCarAction.OnPolicyTypeSelected(it)) }
+                    )
+                }
 
-                // 6. Existing Policy and Rollover Section (Controlled conditionally by policy type & isNewCar)
+                // 6. Existing Policy and Rollover Section (Controlled conditionally by policy type & entryMode)
                 AnimatedVisibility(
                     visible = uiState.shouldShowExistingPolicySection,
                     enter = expandVertically(
@@ -297,108 +305,53 @@ fun NewCarScreen(
                         tpInsurerOptions = uiState.tpInsurerOptions,
                         onTpInsurerSelected = { onAction(NewCarAction.OnTpInsurerSelected(it)) },
                         onTpInsurerClick = { activeBottomSheet = CarInsuranceBottomSheet.TP_INSURER },
+                        shouldShowCard = uiState.shouldShowExistingPolicyCard,
+                        shouldShowClaimAndNcb = uiState.shouldShowClaimAndNcb,
                         claimAndNcbContent = {
-                            AnimatedVisibility(
-                                visible = uiState.shouldShowClaimAndNcb,
-                                enter = expandVertically(
-                                    animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
-                                ) + fadeIn(animationSpec = tween(durationMillis = 220)),
-                                exit = shrinkVertically(
-                                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
-                                ) + fadeOut(animationSpec = tween(durationMillis = 180))
-                            ) {
-                                ClaimAndNcbSection(
-                                    hasClaim = uiState.hasClaim,
-                                    onClaimToggle = { onAction(NewCarAction.OnClaimToggle(it)) },
-                                    selectedNcb = uiState.selectedNcb,
-                                    ncbOptions = uiState.ncbOptions,
-                                    onNcbSelected = { onAction(NewCarAction.OnNcbSelected(it)) },
-                                    onNcbClick = { activeBottomSheet = CarInsuranceBottomSheet.NCB }
-                                )
-                            }
+                            ClaimAndNcbSection(
+                                hasClaim = uiState.hasClaim,
+                                onClaimToggle = { onAction(NewCarAction.OnClaimToggle(it)) },
+                                selectedNcb = uiState.selectedNcb,
+                                ncbOptions = uiState.ncbOptions,
+                                onNcbSelected = { onAction(NewCarAction.OnNcbSelected(it)) },
+                                onNcbClick = { activeBottomSheet = CarInsuranceBottomSheet.NCB }
+                            )
                         }
                     )
                 }
 
-                // 7. Vehicle Specs: Model, Variant, Fuel (When in WITHOUT_CAR_NUMBER or editing car specs)
-                if (uiState.entryMode == CarEntryMode.WITHOUT_CAR_NUMBER) {
+                // 6. Grouped Car Registration Card with Notched Top-Left Border Title
+                TitledBorderCard(
+                    title = "Car Registration",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // 1. Registered on (RTO / City selector field)
                     ClickableSelectorField(
-                        label = "Model",
-                        value = uiState.selectedModel?.label ?: "",
-                        placeholder = "Select model",
-                        onClick = { activeBottomSheet = CarInsuranceBottomSheet.MODEL },
+                        label = "Registered on",
+                        value = uiState.selectedRto?.label ?: "",
+                        placeholder = if (uiState.entryMode == CarEntryMode.WITH_CAR_NUMBER) "Select registration details" else "Place of Registration",
+                        enabled = !uiState.isContinueWithCarNumber,
+                        onClick = {
+                            if (!uiState.isContinueWithCarNumber) {
+                                activeBottomSheet = CarInsuranceBottomSheet.RTO
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    ClickableSelectorField(
-                        label = "Variant",
-                        value = uiState.selectedVariant?.label ?: "",
-                        placeholder = "Select variant",
-                        onClick = { activeBottomSheet = CarInsuranceBottomSheet.VARIANT },
-                        modifier = Modifier.fillMaxWidth()
+                    // 2. Registration Date Picker Field (Full-field clickable with R.drawable.ic_calander)
+                    ClickableDateField(
+                        label = "Registration date",
+                        value = uiState.registrationDate,
+                        placeholder = "DD/MM/YYYY",
+                        contentDescription = "Select Registration Date",
+                        enabled = !uiState.isContinueWithCarNumber,
+                        onClick = {
+                            if (!uiState.isContinueWithCarNumber) {
+                                onAction(NewCarAction.OnOpenDatePicker(DatePickerType.REGISTRATION))
+                            }
+                        }
                     )
-
-                    ClickableSelectorField(
-                        label = "Fuel",
-                        value = uiState.selectedFuel?.label ?: "",
-                        placeholder = "Select fuel",
-                        onClick = { activeBottomSheet = CarInsuranceBottomSheet.FUEL },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // 8. Car Registration & Manufacturing Date Section
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    // Registration Date Picker Field
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Registration date",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppColors.TextPrimary
-                        )
-                        OutlinedTextField(
-                            value = uiState.registrationDate,
-                            onValueChange = {},
-                            readOnly = true,
-                            placeholder = {
-                                Text(
-                                    text = "DD/MM/YYYY",
-                                    color = AppColors.TextPlaceholder,
-                                    fontSize = 14.sp
-                                )
-                            },
-                            trailingIcon = {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_chevron_down),
-                                    contentDescription = "Select registration date",
-                                    tint = AppColors.TextSecondary,
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clickable { onAction(NewCarAction.OnOpenDatePicker(DatePickerType.REGISTRATION)) }
-                                )
-                            },
-                            textStyle = TextStyle(
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = AppColors.TextPrimary
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AppColors.PrimaryBlue,
-                                unfocusedBorderColor = AppColors.BorderSecondary,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedTextColor = AppColors.TextPrimary,
-                                unfocusedTextColor = AppColors.TextPrimary
-                            ),
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
-                                .clickable { onAction(NewCarAction.OnOpenDatePicker(DatePickerType.REGISTRATION)) }
-                        )
-                    }
 
                     // Manufacturing Month + Year Row
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -416,7 +369,12 @@ fun NewCarScreen(
                                 label = "",
                                 items = uiState.manufacturingMonths.map { DropdownOption(it, it) },
                                 selectedItem = DropdownOption(uiState.manufacturingMonth, uiState.manufacturingMonth),
-                                onItemSelected = { onAction(NewCarAction.UpdateManufacturingMonth(it.value)) },
+                                onItemSelected = {
+                                    if (!uiState.isContinueWithCarNumber) {
+                                        onAction(NewCarAction.UpdateManufacturingMonth(it.value))
+                                    }
+                                },
+                                enabled = !uiState.isContinueWithCarNumber,
                                 modifier = Modifier.weight(1f)
                             )
 
@@ -424,7 +382,12 @@ fun NewCarScreen(
                                 label = "",
                                 items = uiState.manufacturingYears.map { DropdownOption(it, it) },
                                 selectedItem = DropdownOption(uiState.manufacturingYear, uiState.manufacturingYear),
-                                onItemSelected = { onAction(NewCarAction.UpdateManufacturingYear(it.value)) },
+                                onItemSelected = {
+                                    if (!uiState.isContinueWithCarNumber) {
+                                        onAction(NewCarAction.UpdateManufacturingYear(it.value))
+                                    }
+                                },
+                                enabled = !uiState.isContinueWithCarNumber,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -483,40 +446,9 @@ fun NewCarScreen(
             )
         }
 
-        CarInsuranceBottomSheet.MODEL -> {
-            AppSearchableBottomSheet(
-                title = "Select model",
-                searchPlaceholder = "Search car model...",
-                items = uiState.modelOptions,
-                selectedItem = uiState.selectedModel,
-                showSearch = true,
-                onItemSelected = { onAction(NewCarAction.OnModelSelected(it)) },
-                onDismiss = { activeBottomSheet = CarInsuranceBottomSheet.NONE }
-            )
-        }
-
-        CarInsuranceBottomSheet.VARIANT -> {
-            AppSearchableBottomSheet(
-                title = "Select variant",
-                searchPlaceholder = "Search car variant...",
-                items = uiState.variantOptions,
-                selectedItem = uiState.selectedVariant,
-                showSearch = true,
-                onItemSelected = { onAction(NewCarAction.OnVariantSelected(it)) },
-                onDismiss = { activeBottomSheet = CarInsuranceBottomSheet.NONE }
-            )
-        }
-
-        CarInsuranceBottomSheet.FUEL -> {
-            AppSearchableBottomSheet(
-                title = "Select fuel",
-                items = uiState.fuelOptions,
-                selectedItem = uiState.selectedFuel,
-                showSearch = false,
-                onItemSelected = { onAction(NewCarAction.OnFuelSelected(it)) },
-                onDismiss = { activeBottomSheet = CarInsuranceBottomSheet.NONE }
-            )
-        }
+        CarInsuranceBottomSheet.MODEL,
+        CarInsuranceBottomSheet.VARIANT,
+        CarInsuranceBottomSheet.FUEL -> Unit
 
         CarInsuranceBottomSheet.NCB -> {
             AppSearchableBottomSheet(
@@ -530,12 +462,115 @@ fun NewCarScreen(
         }
     }
 
+    // Unified Car Details Modal Bottom Sheet
+    if (uiState.isCarDetailsSheetOpen) {
+        CarDetailsBottomSheet(
+            uiState = uiState,
+            onAction = onAction
+        )
+    }
+
     // Date Picker Dialog
     if (uiState.activeDatePicker != null) {
         AppDatePickerDialog(
             onDismiss = { onAction(NewCarAction.OnDismissDatePicker) },
             onDateSelected = { onAction(NewCarAction.OnDateSelected(it)) }
         )
+    }
+}
+
+/**
+ * Unified Car Details Selector Field for NewCarScreen.
+ * Displays "Car Details" header, formatted car specs (e.g. "HYUNDAI, CRETA, PETROL, 1.4 SX (O) DCT TURBO"),
+ * placeholder "Make, Model, Fuel and Variant", and trailing edit icon or chevron.
+ */
+@Composable
+fun CarDetailsSelectorField(
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    errorMessage: String? = null
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Car Details",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = AppColors.TextPrimary
+        )
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .clickable { onClick() },
+            shape = RoundedCornerShape(12.dp),
+            color = Color.White,
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (isError) AppColors.ErrorRed else AppColors.BorderSecondary
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (value.isNotBlank()) {
+                    Text(
+                        text = value,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = AppColors.TextPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Text(
+                        text = "Make, Model, Fuel and Variant",
+                        fontSize = 14.sp,
+                        color = AppColors.TextPlaceholder,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                if (value.isNotBlank()) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit car details",
+                        tint = AppColors.PrimaryBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_chevron_down),
+                        contentDescription = "Select car details",
+                        tint = AppColors.TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        if (isError && errorMessage != null) {
+            Text(
+                text = errorMessage,
+                color = AppColors.ErrorRed,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
     }
 }
 
@@ -548,20 +583,29 @@ private fun NewCarScreen_WithCarNumber_Preview() {
             headerTitle = "Continue with Car Number",
             showVahanBanner = true,
             vahanData = "HONDA CARS INDIA LTD, AMAZE 1.2 V CVT (I-VTEC), PETROL (1199 CC)",
-            customerName = "Nida Hussaini",
-            selectedRto = DropdownOption("MH-12", "MH12 - Pune"),
-            ownershipType = OwnershipType.COMPANY,
+            carDetailsSummary = "KIA - SELTOS - PLUS 1.5 GTX AT - DIESEL - (1493 CC)",
+            make = "KIA",
+            makeId = "KIA",
+            model = "SELTOS",
+            modelId = "SELTOS",
+            fuel = "DIESEL",
+            fuelId = "DIESEL",
+            variant = "Plus 1.5 GTX AT (1493CC)",
+            variantId = "SELTOS_PLUS_1.5_GTX_AT",
+            customerName = "PRIYANKA VYAS",
+            selectedRto = DropdownOption("RJ-14", "RJ14 - Jaipur"),
+            ownershipType = OwnershipType.INDIVIDUAL,
             selectedPolicyType = "Comprehensive",
             hasExistingPolicy = true,
-            selectedInsurer = DropdownOption("ACKO", "Acko General Insurance", R.drawable.ic_acko_logo),
-            policyExpiryDate = "22/08/2027",
-            selectedModel = DropdownOption("HONDA_AMAZE", "Honda Amaze"),
-            selectedVariant = DropdownOption("1.2_S_CVT", "1.2 S CVT (1198CC)"),
-            selectedFuel = DropdownOption("PETROL", "Petrol"),
-            registrationDate = "22/08/2018",
-            manufacturingMonth = "Sep",
-            manufacturingYear = "2017",
-            hasClaim = true,
+            selectedInsurer = DropdownOption("ORIENTAL", "ORIENTAL INSURANCE CO. LTD."),
+            policyExpiryDate = "29-Jan-2027",
+            selectedModel = DropdownOption("KIA_SELTOS", "Kia Seltos"),
+            selectedVariant = DropdownOption("SELTOS_PLUS_1.5_GTX_AT", "Plus 1.5 GTX AT - Diesel - (1493 CC)"),
+            selectedFuel = DropdownOption("DIESEL", "Diesel"),
+            registrationDate = "01-Feb-2021",
+            manufacturingMonth = "Jan",
+            manufacturingYear = "2021",
+            hasClaim = false,
             selectedNcb = DropdownOption("0", "0%"),
             consentGiven = true
         ),
@@ -569,25 +613,55 @@ private fun NewCarScreen_WithCarNumber_Preview() {
     )
 }
 
-@Preview(showBackground = true, name = "Without Car Number Mode (New Car)")
+@Preview(showBackground = true, name = "Without Car Number Mode (Continue without car number)")
 @Composable
 private fun NewCarScreen_WithoutCarNumber_Preview() {
     NewCarScreen(
         uiState = NewCarUiState(
             entryMode = CarEntryMode.WITHOUT_CAR_NUMBER,
+            headerTitle = "Continue without car number",
+            showVahanBanner = false,
+            vahanData = "",
+            carDetailsSummary = "",
+            customerName = "",
+            selectedRto = null,
+            ownershipType = OwnershipType.INDIVIDUAL,
+            selectedPolicyType = "Comprehensive",
+            selectedModel = null,
+            selectedVariant = null,
+            selectedFuel = null,
+            registrationDate = "",
+            manufacturingMonth = "Jan",
+            manufacturingYear = "2021",
+            hasExistingPolicy = true,
+            selectedInsurer = null,
+            policyExpiryDate = "",
+            consentGiven = true
+        ),
+        onAction = {}
+    )
+}
+
+@Preview(showBackground = true, name = "New Car Mode (New Car)")
+@Composable
+private fun NewCarScreen_NewCar_Preview() {
+    NewCarScreen(
+        uiState = NewCarUiState(
+            entryMode = CarEntryMode.NEW_CAR,
             headerTitle = "New Car",
             showVahanBanner = false,
             vahanData = "",
-            isNewCar = true,
+            carDetailsSummary = "",
             customerName = "",
-            selectedRto = DropdownOption("MH-01", "MH01 - Mumbai"),
+            selectedRto = null,
             ownershipType = OwnershipType.INDIVIDUAL,
-            selectedPolicyType = "TP",
-            selectedModel = DropdownOption("HONDA_AMAZE", "Honda Amaze"),
-            selectedVariant = DropdownOption("1.2_S_CVT", "1.2 S CVT (1198CC)"),
-            selectedFuel = DropdownOption("PETROL", "Petrol"),
-            registrationDate = "",
-            manufacturingMonth = "Jan",
+            policyTypeOptions = listOf("TP (3 Yr)", "OD (1 Yr) + TP (3 Yr)"),
+            selectedPolicyType = "OD (1 Yr) + TP (3 Yr)",
+            selectedModel = null,
+            selectedVariant = null,
+            selectedFuel = null,
+            registrationDate = "20-Nov-2026",
+            manufacturingMonth = "Nov",
             manufacturingYear = "2026",
             hasExistingPolicy = false,
             consentGiven = true

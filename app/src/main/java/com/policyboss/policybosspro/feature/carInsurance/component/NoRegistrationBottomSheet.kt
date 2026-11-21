@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.ui.components.button.PrimaryCTAButton
 import com.policyboss.policybosspro.ui.components.radio.AppRadioButton
 import com.policyboss.policybosspro.ui.theme.AppColors
@@ -45,7 +46,7 @@ import com.policyboss.policybosspro.ui.theme.AppColors
 @Composable
 fun NoRegistrationBottomSheet(
     onDismiss: () -> Unit,
-    onOptionSelected: (isNewCar: Boolean) -> Unit
+    onOptionSelected: (entryMode: CarEntryMode) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -65,11 +66,11 @@ fun NoRegistrationBottomSheet(
 @Composable
 fun NoRegistrationBottomSheetContent(
     onDismiss: () -> Unit,
-    onOptionSelected: (isNewCar: Boolean) -> Unit
+    onOptionSelected: (entryMode: CarEntryMode) -> Unit
 ) {
-    // false = Continue without registration number (Existing car)
-    // true = Bought a new car? No registration number yet
-    var selectedIsNewCar by remember { mutableStateOf(false) }
+    // CarEntryMode.WITHOUT_CAR_NUMBER = Continue without a registration number
+    // CarEntryMode.NEW_CAR = Bought a new car? No registration number yet
+    var selectedMode by remember { mutableStateOf(CarEntryMode.WITHOUT_CAR_NUMBER) }
 
     Box(
         modifier = Modifier.fillMaxWidth(),
@@ -109,7 +110,7 @@ fun NoRegistrationBottomSheetContent(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Option 1: Continue without a registration number (isNewCar = false)
+                // Option 1: Continue without a registration number
                 val interaction1 = remember { MutableInteractionSource() }
                 Card(
                     modifier = Modifier
@@ -117,7 +118,7 @@ fun NoRegistrationBottomSheetContent(
                         .clickable(
                             interactionSource = interaction1,
                             indication = null,
-                            onClick = { selectedIsNewCar = false }
+                            onClick = { selectedMode = CarEntryMode.WITHOUT_CAR_NUMBER }
                         ),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -131,7 +132,7 @@ fun NoRegistrationBottomSheetContent(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         AppRadioButton(
-                            selected = !selectedIsNewCar,
+                            selected = selectedMode == CarEntryMode.WITHOUT_CAR_NUMBER,
                             onClick = null
                         )
                         Text(
@@ -144,7 +145,7 @@ fun NoRegistrationBottomSheetContent(
                     }
                 }
 
-                // Option 2: Bought a new car? No registration number yet (isNewCar = true)
+                // Option 2: Bought a new car? No registration number yet
                 val interaction2 = remember { MutableInteractionSource() }
                 Card(
                     modifier = Modifier
@@ -152,7 +153,7 @@ fun NoRegistrationBottomSheetContent(
                         .clickable(
                             interactionSource = interaction2,
                             indication = null,
-                            onClick = { selectedIsNewCar = true }
+                            onClick = { selectedMode = CarEntryMode.NEW_CAR }
                         ),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -166,7 +167,7 @@ fun NoRegistrationBottomSheetContent(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         AppRadioButton(
-                            selected = selectedIsNewCar,
+                            selected = selectedMode == CarEntryMode.NEW_CAR,
                             onClick = null
                         )
                         Text(
@@ -187,7 +188,7 @@ fun NoRegistrationBottomSheetContent(
                 text = "Continue",
                 onClick = {
                     onDismiss()
-                    onOptionSelected(selectedIsNewCar)
+                    onOptionSelected(selectedMode)
                 },
                 containerColor = AppColors.PrimaryBlue,
                 contentColor = Color.White,

@@ -2,6 +2,7 @@ package com.policyboss.policybosspro.navigation
 
 
 
+import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.login.model.verifyAccount.VerifyOtpSource
 
 
@@ -139,7 +140,7 @@ sealed class Dest {
 
     @Serializable
     data class NewCarInsurance(
-        val isNewCar: Boolean = true,
+        val entryMode: CarEntryMode = CarEntryMode.WITHOUT_CAR_NUMBER,
         val carNumber: String? = null
     ) : Dest()
 

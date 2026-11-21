@@ -16,11 +16,10 @@ enum class PolicyType(val displayName: String) {
         fun fromString(value: String?): PolicyType {
             if (value.isNullOrBlank()) return COMPREHENSIVE
             return when {
-                value.equals("TP Only", ignoreCase = true) || value.equals("TP", ignoreCase = true) -> TP_ONLY
+                value.equals("TP (3 Yr)", ignoreCase = true) || value.equals("TP Only", ignoreCase = true) || value.equals("TP", ignoreCase = true) -> TP_ONLY
                 value.equals("OD Only", ignoreCase = true) || value.equals("OD", ignoreCase = true) || value.contains("SAOD", ignoreCase = true) -> OD_ONLY
                 else -> COMPREHENSIVE
             }
         }
     }
 }
-

@@ -5,6 +5,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.api.CarInsuranceAp
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteRequest
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteResponse
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsuranceRepository
+import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
@@ -66,13 +67,13 @@ class NewCarQuoteLoadingTest {
     }
 
     @Test
-    fun `init preserves edited customer name on subsequent calls with same isNewCar`() {
+    fun `init preserves edited customer name on subsequent calls with same entryMode`() {
         val vm = NewCarViewModel(fakeRepository { Resource.Error("unused") })
-        vm.init(isNewCar = true)
+        vm.initForMode(entryMode = CarEntryMode.WITHOUT_CAR_NUMBER)
         vm.onAction(NewCarAction.OnCustomerNameChange("Dhruvi Shah"))
 
-        // Simulates returning to NewCarScreen when LaunchedEffect(isNewCar) re-runs
-        vm.init(isNewCar = true)
+        // Simulates returning to NewCarScreen when LaunchedEffect(entryMode) re-runs
+        vm.initForMode(entryMode = CarEntryMode.WITHOUT_CAR_NUMBER)
 
         assertEquals("Dhruvi Shah", vm.uiState.value.customerName)
         assertEquals("Dhruvi", vm.uiState.value.displayCustomerFirstName)
@@ -88,8 +89,7 @@ class NewCarQuoteLoadingTest {
                 deferred.await()
             }
         )
-        vm.init(isNewCar = true)
-        vm.onAction(NewCarAction.OnCustomerNameChange("Dhruvi"))
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
 
         val formEvents = mutableListOf<NewCarUiEvent>()
         val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
@@ -139,7 +139,7 @@ class NewCarQuoteLoadingTest {
         // Consuming navigation resets quoteState to Idle while preserving customer name
         vm.onAction(NewCarAction.OnQuoteNavigationHandled)
         assertEquals(QuoteFetchState.Idle, vm.uiState.value.quoteState)
-        assertEquals("Dhruvi", vm.uiState.value.customerName)
+        assertEquals("PRIYANKA VYAS", vm.uiState.value.customerName)
 
         formJob.cancel()
         loadingJob.cancel()
@@ -165,8 +165,7 @@ class NewCarQuoteLoadingTest {
                 }
             }
         )
-        vm.init(isNewCar = true)
-        vm.onAction(NewCarAction.OnCustomerNameChange("Dhruvi"))
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
 
         val formEvents = mutableListOf<NewCarUiEvent>()
         val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
@@ -201,8 +200,7 @@ class NewCarQuoteLoadingTest {
     fun `cancelling quote loading cancels in-flight request, resets to Idle, and closes loading screen`() = runTest {
         val deferred = CompletableDeferred<Resource<CarQuoteResponse>>()
         val vm = NewCarViewModel(fakeRepository { deferred.await() })
-        vm.init(isNewCar = true)
-        vm.onAction(NewCarAction.OnCustomerNameChange("Dhruvi"))
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
 
         val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
         val loadingJob = launch { vm.quoteLoadingEvent.collect { loadingEvents.add(it) } }
@@ -216,7 +214,7 @@ class NewCarQuoteLoadingTest {
 
         assertEquals(QuoteFetchState.Idle, vm.uiState.value.quoteState)
         assertFalse(vm.uiState.value.isLoading)
-        assertEquals("Dhruvi", vm.uiState.value.customerName)
+        assertEquals("PRIYANKA VYAS", vm.uiState.value.customerName)
         assertEquals(listOf(QuoteLoadingUiEvent.CloseLoading), loadingEvents)
 
         // Late completion after cancellation must not trigger quote navigation
@@ -239,7 +237,7 @@ class NewCarQuoteLoadingTest {
                 Resource.Success(CarQuoteResponse())
             }
         )
-        vm.init(isNewCar = true)
+        vm.initForMode(entryMode = CarEntryMode.WITHOUT_CAR_NUMBER)
         vm.onAction(NewCarAction.OnCustomerNameChange("   "))
 
         val formEvents = mutableListOf<NewCarUiEvent>()
@@ -260,10 +258,10 @@ class NewCarQuoteLoadingTest {
     @Test
     fun `init with car number configures WITH_CAR_NUMBER mode, Vahan data, and pre-filled vehicle details`() {
         val vm = NewCarViewModel(fakeRepository { Resource.Success(CarQuoteResponse()) })
-        vm.init(isNewCar = false, carNumber = "RJ14-1234")
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
 
         val state = vm.uiState.value
-        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode.WITH_CAR_NUMBER, state.entryMode)
+        assertEquals(CarEntryMode.WITH_CAR_NUMBER, state.entryMode)
         assertEquals("Continue with Car Number", state.headerTitle)
         assertTrue(state.showVahanBanner)
         assertTrue(state.vahanData.contains("KIA INDIA PRIVATE LIMITED"))
@@ -280,21 +278,21 @@ class NewCarQuoteLoadingTest {
     @Test
     fun `init without car number configures WITHOUT_CAR_NUMBER mode, hides Vahan banner and resets vehicle details`() {
         val vm = NewCarViewModel(fakeRepository { Resource.Success(CarQuoteResponse()) })
-        vm.init(isNewCar = true, carNumber = null)
+        vm.initForMode(entryMode = CarEntryMode.WITHOUT_CAR_NUMBER)
 
         val state = vm.uiState.value
-        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode.WITHOUT_CAR_NUMBER, state.entryMode)
-        assertEquals("New Car", state.headerTitle)
+        assertEquals(CarEntryMode.WITHOUT_CAR_NUMBER, state.entryMode)
+        assertEquals("Continue without car number", state.headerTitle)
         assertFalse(state.showVahanBanner)
         assertEquals("", state.vahanData)
         assertEquals("", state.registrationNumber)
-        assertFalse(state.hasExistingPolicy)
+        assertTrue(state.hasExistingPolicy)
     }
 
     @Test
     fun `update manufacturing month and year modifies ui state accordingly`() {
         val vm = NewCarViewModel(fakeRepository { Resource.Success(CarQuoteResponse()) })
-        vm.init(isNewCar = false, carNumber = "RJ14-1234")
+        vm.initForMode(entryMode = CarEntryMode.WITHOUT_CAR_NUMBER)
 
         vm.onAction(NewCarAction.UpdateManufacturingMonth("Mar"))
         vm.onAction(NewCarAction.UpdateManufacturingYear("2023"))

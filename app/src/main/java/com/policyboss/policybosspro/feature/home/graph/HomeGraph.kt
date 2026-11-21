@@ -8,9 +8,10 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import com.policyboss.policybosspro.anim.NavigationAnimations
+import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.ui.NewCarRoute
 import com.policyboss.policybosspro.feature.carInsurance.ui.QuoteLoadingRoute
-import com.policyboss.policybosspro.feature.carInsurance.ui.results.MotorQuoteResultsRoute
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.ui.MotorQuoteResultsRoute
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
 import com.policyboss.policybosspro.feature.home.ui_home.HomeRoute
 import com.policyboss.policybosspro.feature.home.ui_Menu.MenuRoute
@@ -58,7 +59,7 @@ fun NavGraphBuilder.homeGraph(
                 onGetQuoteClick = { registrationNumber ->
                     appNavigator.navigateTo(
                         Dest.NewCarInsurance(
-                            isNewCar = false,
+                            entryMode = CarEntryMode.WITH_CAR_NUMBER,
                             carNumber = registrationNumber
                         )
                     )
@@ -66,8 +67,8 @@ fun NavGraphBuilder.homeGraph(
                 onNavigateToMenu = {
                     appNavigator.navigateTo(Dest.Menu)
                 },
-                onNavigateToNewCar = { isNewCar ->
-                    appNavigator.navigateTo(Dest.NewCarInsurance(isNewCar = isNewCar))
+                onNavigateToNewCar = { entryMode ->
+                    appNavigator.navigateTo(Dest.NewCarInsurance(entryMode = entryMode))
                 },
                 onNavigateToSyncContact = {
                     appNavigator.navigateTo(Dest.SyncContact)
@@ -115,7 +116,7 @@ fun NavGraphBuilder.homeGraph(
             val route = backStackEntry.toRoute<Dest.NewCarInsurance>()
             val viewModel: NewCarViewModel = hiltViewModel(backStackEntry)
             NewCarRoute(
-                isNewCar = route.isNewCar,
+                entryMode = route.entryMode,
                 carNumber = route.carNumber,
                 viewModel = viewModel,
                 onNavigateBack = {

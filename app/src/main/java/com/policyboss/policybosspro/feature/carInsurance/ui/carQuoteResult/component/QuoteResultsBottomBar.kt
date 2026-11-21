@@ -1,4 +1,4 @@
-package com.policyboss.policybosspro.feature.carInsurance.ui.results
+package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable

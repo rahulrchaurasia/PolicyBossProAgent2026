@@ -5,9 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.policyboss.policybosspro.core.Resource
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteRequest
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsuranceRepository
+import com.policyboss.policybosspro.feature.carInsurance.model.CarBrandModelItem
+import com.policyboss.policybosspro.feature.carInsurance.model.CarDetailsStep
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.CarInsuranceData
+import com.policyboss.policybosspro.feature.carInsurance.model.CarVariantItem
 import com.policyboss.policybosspro.feature.carInsurance.model.DatePickerType
+import com.policyboss.policybosspro.feature.carInsurance.model.NavigationDirection
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
@@ -44,117 +48,192 @@ class NewCarViewModel @Inject constructor(
     private var initializedCarNumber: String? = null
     private var quoteJob: Job? = null
 
-    fun init(
-        isNewCar: Boolean = true,
-        carNumber: String? = null,
-        entryMode: CarEntryMode? = null
+    fun initForMode(
+        entryMode: CarEntryMode,
+        carNumber: String? = null
     ) {
-        val resolvedMode = entryMode ?: if (!carNumber.isNullOrBlank()) {
-            CarEntryMode.WITH_CAR_NUMBER
-        } else if (!isNewCar) {
-            CarEntryMode.WITH_CAR_NUMBER
-        } else {
-            CarEntryMode.WITHOUT_CAR_NUMBER
-        }
-
-        if (initializedMode == resolvedMode && initializedCarNumber == carNumber) return
-        initializedMode = resolvedMode
+        if (initializedMode == entryMode && initializedCarNumber == carNumber) return
+        initializedMode = entryMode
         initializedCarNumber = carNumber
-
-        val policyTypes = CarInsuranceData.existingCarPolicyTypes
 
         val seltosModel = DropdownOption("KIA_SELTOS", "Kia Seltos")
         val seltosVariant = DropdownOption("SELTOS_PLUS_1.5_GTX_AT", "Plus 1.5 GTX AT - Diesel - (1493 CC)")
         val seltosFuel = DropdownOption("DIESEL", "Diesel")
         val jaipurRto = DropdownOption("RJ-14", "RJ14 - Jaipur")
-        val orientalInsurer = DropdownOption("ORIENTAL", "ORIENTAL INSURANCE CO. LTD.")
+        val orientalInsurer = DropdownOption("ORIENTAL", "ORIENTAL INSURANCE CO. LTD.", com.policyboss.policybosspro.R.drawable.ic_acko_logo)
         val defaultTpInsurer = DropdownOption("ACKO", "Acko General Insurance", com.policyboss.policybosspro.R.drawable.ic_acko_logo)
 
-        val defaultModel = DropdownOption("HONDA_AMAZE", "Honda Amaze")
-        val defaultVariant = DropdownOption("1.2_S_CVT", "1.2 S CVT (1198CC)")
-        val defaultFuel = DropdownOption("PETROL", "Petrol")
-        val defaultRto = DropdownOption("MH-01", "MH01 - Mumbai")
-        val defaultInsurer = DropdownOption("ACKO", "Acko General Insurance")
+        when (entryMode) {
+            CarEntryMode.WITH_CAR_NUMBER -> {
+                val vahanText = "KIA INDIA PRIVATE LIMITED, SELTOS D1.5 6AT GTX PLUS, DIESEL(1493 CC)"
+                val carSummary = "KIA - SELTOS - PLUS 1.5 GTX AT - DIESEL - (1493 CC)"
 
-        if (resolvedMode == CarEntryMode.WITH_CAR_NUMBER) {
-            val vahanText = "KIA INDIA PRIVATE LIMITED, SELTOS D1.5 6AT GTX PLUS, DIESEL(1493 CC)"
-            val carSummary = "KIA - SELTOS - PLUS 1.5 GTX AT - DIESEL - (1493 CC)"
-
-            _uiState.update { current ->
-                current.copy(
-                    entryMode = CarEntryMode.WITH_CAR_NUMBER,
-                    headerTitle = "Continue with Car Number",
-                    registrationNumber = carNumber ?: "RJ14-1234",
-                    vahanData = vahanText,
-                    vahanDetails = vahanText,
-                    showVahanBanner = true,
-                    carDetailsSummary = carSummary,
-                    isNewCar = false,
-                    policyTypeOptions = policyTypes,
-                    policyType = com.policyboss.policybosspro.feature.carInsurance.model.PolicyType.COMPREHENSIVE,
-                    selectedPolicyType = "Comprehensive",
-                    customerName = if (current.customerName.isNotBlank() && current.customerName != "Nida Hussaini") current.customerName else "PRIYANKA VYAS",
-                    selectedRto = jaipurRto,
-                    ownershipType = OwnershipType.INDIVIDUAL,
-                    selectedModel = seltosModel,
-                    selectedVariant = seltosVariant,
-                    selectedFuel = seltosFuel,
-                    registrationDate = "01-Feb-2021",
-                    manufacturingMonth = "Jan",
-                    manufacturingYear = "2021",
-                    manufacturingDate = "01/01/2021",
-                    hasExistingPolicy = true,
-                    selectedInsurer = orientalInsurer,
-                    selectedTpInsurer = defaultTpInsurer,
-                    policyExpiryDate = "29-Jan-2027",
-                    hasClaim = false,
-                    selectedNcb = DropdownOption("0", "0%"),
-                    consentGiven = true
-                )
+                _uiState.update { current ->
+                    current.copy(
+                        entryMode = CarEntryMode.WITH_CAR_NUMBER,
+                        headerTitle = "Continue with Car Number",
+                        registrationNumber = carNumber ?: "RJ14-1234",
+                        vahanData = vahanText,
+                        vahanDetails = vahanText,
+                        showVahanBanner = true,
+                        carDetailsSummary = carSummary,
+                        make = "KIA",
+                        makeId = "KIA",
+                        model = "SELTOS",
+                        modelId = "SELTOS",
+                        fuel = "DIESEL",
+                        fuelId = "DIESEL",
+                        variant = "Plus 1.5 GTX AT (1493CC)",
+                        variantId = "SELTOS_PLUS_1.5_GTX_AT",
+                        isCarDetailsSheetOpen = false,
+                        sheetStep = CarDetailsStep.MAKE_MODEL,
+                        draftBrandModel = null,
+                        draftFuel = null,
+                        draftVariant = null,
+                        sheetSearchQuery = "",
+                        policyTypeOptions = CarInsuranceData.existingCarPolicyTypes,
+                        policyType = com.policyboss.policybosspro.feature.carInsurance.model.PolicyType.COMPREHENSIVE,
+                        selectedPolicyType = "Comprehensive",
+                        customerName = if (current.customerName.isNotBlank() && current.customerName != "Nida Hussaini") current.customerName else "PRIYANKA VYAS",
+                        customerNameError = null,
+                        selectedRto = jaipurRto,
+                        ownershipType = OwnershipType.INDIVIDUAL,
+                        selectedModel = seltosModel,
+                        selectedVariant = seltosVariant,
+                        selectedFuel = seltosFuel,
+                        registrationDate = "01-Feb-2021",
+                        manufacturingMonth = "Jan",
+                        manufacturingYear = "2021",
+                        manufacturingDate = "01/01/2021",
+                        hasExistingPolicy = true,
+                        selectedInsurer = orientalInsurer,
+                        selectedTpInsurer = defaultTpInsurer,
+                        policyExpiryDate = "29-Jan-2027",
+                        hasClaim = false,
+                        selectedNcb = DropdownOption("0", "0%"),
+                        consentGiven = true
+                    )
+                }
             }
-        } else {
-            _uiState.update { current ->
-                current.copy(
-                    entryMode = CarEntryMode.WITHOUT_CAR_NUMBER,
-                    headerTitle = "New Car",
-                    registrationNumber = "",
-                    vahanData = "",
-                    vahanDetails = "",
-                    showVahanBanner = false,
-                    carDetailsSummary = "",
-                    isNewCar = true,
-                    policyTypeOptions = policyTypes,
-                    policyType = com.policyboss.policybosspro.feature.carInsurance.model.PolicyType.TP_ONLY,
-                    selectedPolicyType = "TP Only",
-                    customerName = if (current.customerName.isNotBlank() && current.customerName != "PRIYANKA VYAS") current.customerName else "",
-                    selectedRto = defaultRto,
-                    ownershipType = OwnershipType.INDIVIDUAL,
-                    selectedModel = defaultModel,
-                    selectedVariant = defaultVariant,
-                    selectedFuel = defaultFuel,
-                    registrationDate = "",
-                    manufacturingMonth = "Jan",
-                    manufacturingYear = "2026",
-                    manufacturingDate = "",
-                    hasExistingPolicy = false,
-                    selectedInsurer = null,
-                    selectedTpInsurer = null,
-                    policyExpiryDate = "",
-                    hasClaim = false,
-                    selectedNcb = DropdownOption("0", "0%"),
-                    consentGiven = true
-                )
+            CarEntryMode.WITHOUT_CAR_NUMBER -> {
+                _uiState.update { current ->
+                    current.copy(
+                        entryMode = CarEntryMode.WITHOUT_CAR_NUMBER,
+                        headerTitle = "Continue without car number",
+                        registrationNumber = "",
+                        vahanData = "",
+                        vahanDetails = "",
+                        showVahanBanner = false,
+                        carDetailsSummary = "",
+                        make = "",
+                        makeId = "",
+                        model = "",
+                        modelId = "",
+                        fuel = "",
+                        fuelId = "",
+                        variant = "",
+                        variantId = "",
+                        isCarDetailsSheetOpen = false,
+                        sheetStep = CarDetailsStep.MAKE_MODEL,
+                        draftBrandModel = null,
+                        draftFuel = null,
+                        draftVariant = null,
+                        sheetSearchQuery = "",
+                        policyTypeOptions = CarInsuranceData.existingCarPolicyTypes,
+                        policyType = com.policyboss.policybosspro.feature.carInsurance.model.PolicyType.COMPREHENSIVE,
+                        selectedPolicyType = "Comprehensive",
+                        customerName = if (current.customerName.isNotBlank() && current.customerName != "PRIYANKA VYAS") current.customerName else "",
+                        customerNameError = null,
+                        selectedRto = null,
+                        ownershipType = OwnershipType.INDIVIDUAL,
+                        selectedModel = null,
+                        selectedVariant = null,
+                        selectedFuel = null,
+                        registrationDate = "",
+                        manufacturingMonth = "Jan",
+                        manufacturingYear = "2021",
+                        manufacturingDate = "",
+                        hasExistingPolicy = true,
+                        selectedInsurer = null,
+                        selectedTpInsurer = null,
+                        policyExpiryDate = "",
+                        hasClaim = false,
+                        selectedNcb = DropdownOption("0", "0%"),
+                        consentGiven = true
+                    )
+                }
+            }
+            CarEntryMode.NEW_CAR -> {
+                val today = java.time.LocalDate.now()
+                val regFormatted = today.format(java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy", java.util.Locale.ENGLISH))
+                val mfgMonth = today.format(java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale.ENGLISH))
+                val mfgYear = today.year.toString()
+
+                _uiState.update { current ->
+                    current.copy(
+                        entryMode = CarEntryMode.NEW_CAR,
+                        headerTitle = "New Car",
+                        registrationNumber = "",
+                        vahanData = "",
+                        vahanDetails = "",
+                        showVahanBanner = false,
+                        carDetailsSummary = "",
+                        make = "",
+                        makeId = "",
+                        model = "",
+                        modelId = "",
+                        fuel = "",
+                        fuelId = "",
+                        variant = "",
+                        variantId = "",
+                        isCarDetailsSheetOpen = false,
+                        sheetStep = CarDetailsStep.MAKE_MODEL,
+                        draftBrandModel = null,
+                        draftFuel = null,
+                        draftVariant = null,
+                        sheetSearchQuery = "",
+                        policyTypeOptions = listOf("TP (3 Yr)", "OD (1 Yr) + TP (3 Yr)"),
+                        policyType = com.policyboss.policybosspro.feature.carInsurance.model.PolicyType.COMPREHENSIVE,
+                        selectedPolicyType = "OD (1 Yr) + TP (3 Yr)",
+                        customerName = if (current.customerName.isNotBlank() && current.customerName != "PRIYANKA VYAS") current.customerName else "",
+                        customerNameError = null,
+                        selectedRto = null,
+                        ownershipType = OwnershipType.INDIVIDUAL,
+                        selectedModel = null,
+                        selectedVariant = null,
+                        selectedFuel = null,
+                        registrationDate = regFormatted,
+                        manufacturingMonth = mfgMonth,
+                        manufacturingYear = mfgYear,
+                        manufacturingDate = "01/$mfgMonth/$mfgYear",
+                        hasExistingPolicy = false,
+                        selectedInsurer = null,
+                        selectedTpInsurer = null,
+                        policyExpiryDate = "",
+                        hasClaim = false,
+                        selectedNcb = DropdownOption("0", "0%"),
+                        consentGiven = true
+                    )
+                }
             }
         }
+    }
+
+    fun init(
+        entryMode: CarEntryMode = CarEntryMode.WITHOUT_CAR_NUMBER,
+        carNumber: String? = null
+    ) {
+        initForMode(entryMode = entryMode, carNumber = carNumber)
     }
 
     fun onAction(action: NewCarAction) {
         when (action) {
             is NewCarAction.UpdateEntryMode -> {
-                init(isNewCar = action.mode == CarEntryMode.WITHOUT_CAR_NUMBER, entryMode = action.mode)
+                initForMode(entryMode = action.mode)
             }
 
             is NewCarAction.UpdateManufacturingMonth -> {
+                if (_uiState.value.isContinueWithCarNumber) return
                 _uiState.update {
                     it.copy(
                         manufacturingMonth = action.month,
@@ -164,6 +243,7 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.UpdateManufacturingYear -> {
+                if (_uiState.value.isContinueWithCarNumber) return
                 _uiState.update {
                     it.copy(
                         manufacturingYear = action.year,
@@ -209,6 +289,7 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnCustomerNameChange -> {
+                if (_uiState.value.isContinueWithCarNumber) return
                 _uiState.update {
                     it.copy(
                         customerName = action.name,
@@ -218,6 +299,7 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnRtoSelected -> {
+                if (_uiState.value.isContinueWithCarNumber) return
                 _uiState.update { it.copy(selectedRto = action.option) }
             }
 
@@ -230,7 +312,7 @@ class NewCarViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         policyType = resolved,
-                        selectedPolicyType = resolved.displayName
+                        selectedPolicyType = action.policyType
                     )
                 }
             }
@@ -254,6 +336,197 @@ class NewCarViewModel @Inject constructor(
 
             is NewCarAction.OnTpInsurerSelected -> {
                 _uiState.update { it.copy(selectedTpInsurer = action.option) }
+            }
+
+            // Unified Car Details Selection Actions
+            is NewCarAction.OpenCarDetailsSheet -> {
+                val state = _uiState.value
+                val hasCommittedVehicle = state.make.isNotBlank() && state.model.isNotBlank() && state.variant.isNotBlank()
+                if (hasCommittedVehicle) {
+                    val brandModel = CarInsuranceData.brandModels.firstOrNull {
+                        it.makeId.equals(state.makeId, ignoreCase = true) && it.modelId.equals(state.modelId, ignoreCase = true)
+                    } ?: CarBrandModelItem(
+                        makeId = state.makeId.ifBlank { state.make },
+                        makeName = state.make,
+                        modelId = state.modelId.ifBlank { state.model },
+                        modelName = state.model
+                    )
+                    val variantItem = CarInsuranceData.getVariantsFor(brandModel.makeId, brandModel.modelId, state.fuel)
+                        .firstOrNull {
+                            it.variantId.equals(state.variantId, ignoreCase = true) ||
+                                    it.variantName.equals(state.variant, ignoreCase = true)
+                        } ?: CarVariantItem(
+                            variantId = state.variantId.ifBlank { state.variant },
+                            variantName = state.variant,
+                            fuelType = state.fuel
+                        )
+                    _uiState.update {
+                        it.copy(
+                            isCarDetailsSheetOpen = true,
+                            sheetStep = CarDetailsStep.VARIANT,
+                            sheetNavigationDirection = NavigationDirection.FORWARD,
+                            draftBrandModel = brandModel,
+                            draftFuel = state.fuel.ifBlank { "PETROL" },
+                            draftVariant = variantItem,
+                            sheetSearchQuery = ""
+                        )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            isCarDetailsSheetOpen = true,
+                            sheetStep = CarDetailsStep.MAKE_MODEL,
+                            sheetNavigationDirection = NavigationDirection.FORWARD,
+                            draftBrandModel = null,
+                            draftFuel = null,
+                            draftVariant = null,
+                            sheetSearchQuery = ""
+                        )
+                    }
+                }
+            }
+
+            is NewCarAction.DismissCarDetailsSheet -> {
+                _uiState.update {
+                    it.copy(
+                        isCarDetailsSheetOpen = false,
+                        draftBrandModel = null,
+                        draftFuel = null,
+                        draftVariant = null,
+                        sheetSearchQuery = ""
+                    )
+                }
+            }
+
+            is NewCarAction.OnSheetStepClick -> {
+                val state = _uiState.value
+                if (action.step == state.sheetStep) return
+                val canNavigate = when (action.step) {
+                    CarDetailsStep.MAKE_MODEL -> true
+                    CarDetailsStep.FUEL -> state.draftBrandModel != null || state.model.isNotBlank()
+                    CarDetailsStep.VARIANT -> (state.draftBrandModel != null || state.model.isNotBlank()) &&
+                            (!state.draftFuel.isNullOrBlank() || state.fuel.isNotBlank())
+                }
+                if (canNavigate) {
+                    val direction = if (action.step.ordinal > state.sheetStep.ordinal) {
+                        NavigationDirection.FORWARD
+                    } else {
+                        NavigationDirection.BACKWARD
+                    }
+                    _uiState.update {
+                        it.copy(
+                            sheetStep = action.step,
+                            sheetNavigationDirection = direction,
+                            sheetSearchQuery = ""
+                        )
+                    }
+                }
+            }
+
+            is NewCarAction.OnSheetBackClick -> {
+                val state = _uiState.value
+                when (state.sheetStep) {
+                    CarDetailsStep.VARIANT -> {
+                        _uiState.update {
+                            it.copy(
+                                sheetStep = CarDetailsStep.FUEL,
+                                sheetNavigationDirection = NavigationDirection.BACKWARD,
+                                sheetSearchQuery = ""
+                            )
+                        }
+                    }
+                    CarDetailsStep.FUEL -> {
+                        _uiState.update {
+                            it.copy(
+                                sheetStep = CarDetailsStep.MAKE_MODEL,
+                                sheetNavigationDirection = NavigationDirection.BACKWARD,
+                                sheetSearchQuery = ""
+                            )
+                        }
+                    }
+                    CarDetailsStep.MAKE_MODEL -> {
+                        _uiState.update {
+                            it.copy(
+                                isCarDetailsSheetOpen = false,
+                                draftBrandModel = null,
+                                draftFuel = null,
+                                draftVariant = null,
+                                sheetSearchQuery = ""
+                            )
+                        }
+                    }
+                }
+            }
+
+            is NewCarAction.OnDraftBrandModelSelected -> {
+                _uiState.update {
+                    it.copy(
+                        draftBrandModel = action.item,
+                        draftFuel = null,
+                        draftVariant = null,
+                        sheetStep = CarDetailsStep.FUEL,
+                        sheetNavigationDirection = NavigationDirection.FORWARD,
+                        sheetSearchQuery = ""
+                    )
+                }
+            }
+
+            is NewCarAction.OnDraftFuelSelected -> {
+                _uiState.update {
+                    it.copy(
+                        draftFuel = action.fuel,
+                        draftVariant = null,
+                        sheetStep = CarDetailsStep.VARIANT,
+                        sheetNavigationDirection = NavigationDirection.FORWARD,
+                        sheetSearchQuery = ""
+                    )
+                }
+            }
+
+            is NewCarAction.OnDraftVariantSelected -> {
+                val state = _uiState.value
+                val brandModel = state.draftBrandModel ?: CarInsuranceData.brandModels.firstOrNull {
+                    it.makeId.equals(state.makeId, ignoreCase = true) && it.modelId.equals(state.modelId, ignoreCase = true)
+                } ?: CarBrandModelItem(
+                    makeId = state.makeId.ifBlank { state.make },
+                    makeName = state.make,
+                    modelId = state.modelId.ifBlank { state.model },
+                    modelName = state.model
+                )
+                val chosenFuel = state.draftFuel ?: action.item.fuelType.ifBlank { state.fuel.ifBlank { "PETROL" } }
+                val makeName = brandModel.makeName
+                val makeId = brandModel.makeId
+                val modelName = brandModel.modelName
+                val modelId = brandModel.modelId
+                val variantName = action.item.variantName
+                val variantId = action.item.variantId
+                val summary = "$makeName, $modelName, $chosenFuel, $variantName".uppercase()
+
+                _uiState.update {
+                    it.copy(
+                        make = makeName,
+                        makeId = makeId,
+                        model = modelName,
+                        modelId = modelId,
+                        fuel = chosenFuel,
+                        fuelId = chosenFuel,
+                        variant = variantName,
+                        variantId = variantId,
+                        selectedModel = DropdownOption(modelId, modelName),
+                        selectedVariant = DropdownOption(variantId, variantName),
+                        selectedFuel = DropdownOption(chosenFuel, chosenFuel),
+                        carDetailsSummary = summary,
+                        isCarDetailsSheetOpen = false,
+                        sheetSearchQuery = "",
+                        draftBrandModel = null,
+                        draftFuel = null,
+                        draftVariant = null
+                    )
+                }
+            }
+
+            is NewCarAction.OnSheetSearchQueryChange -> {
+                _uiState.update { it.copy(sheetSearchQuery = action.query) }
             }
 
             is NewCarAction.OnModelSelected -> {
@@ -285,6 +558,7 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnOpenDatePicker -> {
+                if (action.type == DatePickerType.REGISTRATION && _uiState.value.isContinueWithCarNumber) return
                 _uiState.update { it.copy(activeDatePicker = action.type) }
             }
 
@@ -292,10 +566,16 @@ class NewCarViewModel @Inject constructor(
                 val activeType = _uiState.value.activeDatePicker
                 _uiState.update { state ->
                     when (activeType) {
-                        DatePickerType.REGISTRATION -> state.copy(
-                            registrationDate = action.dateString,
-                            activeDatePicker = null
-                        )
+                        DatePickerType.REGISTRATION -> {
+                            if (state.isContinueWithCarNumber) {
+                                state.copy(activeDatePicker = null)
+                            } else {
+                                state.copy(
+                                    registrationDate = action.dateString,
+                                    activeDatePicker = null
+                                )
+                            }
+                        }
                         DatePickerType.MANUFACTURING -> state.copy(
                             manufacturingDate = action.dateString,
                             activeDatePicker = null
@@ -516,17 +796,22 @@ class NewCarViewModel @Inject constructor(
             rtoCity = state.selectedRto?.label ?: "Mumbai",
             registeredOn = state.ownershipType.displayName,
             policyType = state.selectedPolicyType,
-            isNewCar = state.isNewCar,
-            model = state.selectedModel?.label ?: "Honda Amaze",
-            variant = state.selectedVariant?.label ?: "1.2 S CVT (1198CC)",
-            fuel = state.selectedFuel?.label ?: "Petrol",
+            isNewCar = state.entryMode == CarEntryMode.NEW_CAR,
+            makeId = state.makeId.ifBlank { null },
+            modelId = state.modelId.ifBlank { null },
+            fuelId = state.fuelId.ifBlank { null },
+            variantId = state.variantId.ifBlank { null },
+            model = state.model.ifBlank { state.selectedModel?.label ?: "Honda Amaze" },
+            variant = state.variant.ifBlank { state.selectedVariant?.label ?: "1.2 S CVT (1198CC)" },
+            fuel = state.fuel.ifBlank { state.selectedFuel?.label ?: "Petrol" },
             registrationDate = state.registrationDate,
             manufacturingDate = state.manufacturingDate,
             hasExistingPolicy = state.hasExistingPolicy,
-            previousInsurer = state.selectedInsurer?.label,
-            policyExpiryDate = state.policyExpiryDate,
-            hasClaim = state.hasClaim,
-            ncbStatus = state.selectedNcb?.label,
+            previousInsurer = if (state.shouldShowPreviousInsurer) state.selectedInsurer?.label else null,
+            tpInsurer = if (state.shouldShowTpInsurer) state.selectedTpInsurer?.label else null,
+            policyExpiryDate = if (state.shouldShowExpiryDate) state.policyExpiryDate else null,
+            hasClaim = if (state.shouldShowClaimAndNcb) state.hasClaim else null,
+            ncbStatus = if (state.shouldShowClaimAndNcb) state.selectedNcb?.label else null,
             consent = state.consentGiven
         )
 

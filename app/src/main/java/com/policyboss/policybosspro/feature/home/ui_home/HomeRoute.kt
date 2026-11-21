@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.home.component.home.bottomsheet.RenewPolicyBottomSheet
 import com.policyboss.policybosspro.feature.home.component.home.bottomsheet.SyncIncentiveBottomSheet
 import com.policyboss.policybosspro.feature.home.model.home.RenewalOption
@@ -26,7 +27,7 @@ fun HomeRoute(
     onNavigateToProfile: () -> Unit,
     onGetQuoteClick: (String) -> Unit,
     onNavigateToMenu: () -> Unit,
-    onNavigateToNewCar: (Boolean) -> Unit = {},
+    onNavigateToNewCar: (CarEntryMode) -> Unit = {},
     onNavigateToSyncContact: () -> Unit = {},
     onNavigateToWebView: (url: String, title: String) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = hiltViewModel()
@@ -131,7 +132,7 @@ fun HomeRoute(
                             "Renew Policy - ${action.lead.name}"
                         )
                     } else {
-                        onNavigateToNewCar(false)
+                        onNavigateToNewCar(CarEntryMode.WITHOUT_CAR_NUMBER)
                     }
                 }
                 else -> viewModel.onAction(action)
@@ -152,9 +153,9 @@ fun HomeRoute(
             onDismiss = {
                 viewModel.onAction(HomeAction.OnDismissNoRegistrationBottomSheet)
             },
-            onOptionSelected = { isNewCar ->
+            onOptionSelected = { entryMode ->
                 viewModel.onAction(HomeAction.OnDismissNoRegistrationBottomSheet)
-                onNavigateToNewCar(isNewCar)
+                onNavigateToNewCar(entryMode)
             }
         )
     }

@@ -54,7 +54,6 @@ data class NewCarUiState(
     val policyTypeOptions: List<String> = CarInsuranceData.existingCarPolicyTypes,
 
     // Existing Policy Section (For rollover / non-new car)
-    val isNewCar: Boolean = true,
     val hasExistingPolicy: Boolean = true,
     val selectedInsurer: DropdownOption<String>? = null,
     val insurerOptions: List<DropdownOption<String>> = CarInsuranceData.insurerOptions,
@@ -63,12 +62,29 @@ data class NewCarUiState(
     val policyExpiryDate: String = "",
 
     // Car Specs
+    val make: String = "",
+    val makeId: String = "",
+    val model: String = "",
+    val modelId: String = "",
+    val fuel: String = "",
+    val fuelId: String = "",
+    val variant: String = "",
+    val variantId: String = "",
     val selectedModel: DropdownOption<String>? = null,
     val modelOptions: List<DropdownOption<String>> = CarInsuranceData.carModels,
     val selectedVariant: DropdownOption<String>? = null,
     val variantOptions: List<DropdownOption<String>> = CarInsuranceData.defaultVariants,
     val selectedFuel: DropdownOption<String>? = null,
     val fuelOptions: List<DropdownOption<String>> = CarInsuranceData.fuelOptions,
+
+    // Bottom Sheet Draft State
+    val isCarDetailsSheetOpen: Boolean = false,
+    val sheetStep: CarDetailsStep = CarDetailsStep.MAKE_MODEL,
+    val sheetNavigationDirection: NavigationDirection = NavigationDirection.FORWARD,
+    val draftBrandModel: CarBrandModelItem? = null,
+    val draftFuel: String? = null,
+    val draftVariant: CarVariantItem? = null,
+    val sheetSearchQuery: String = "",
 
     // Dates
     val registrationDate: String = "",
@@ -110,6 +126,9 @@ data class NewCarUiState(
     val isLoading: Boolean
         get() = quoteState is QuoteFetchState.Loading
 
+    val isContinueWithCarNumber: Boolean
+        get() = entryMode == CarEntryMode.WITH_CAR_NUMBER
+
     val displayCustomerFirstName: String
         get() = customerName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
 
@@ -130,16 +149,19 @@ data class NewCarUiState(
         get() = policyType == PolicyType.OD_ONLY
 
     val shouldShowExistingPolicySection: Boolean
-        get() = !isNewCar && (entryMode == CarEntryMode.WITH_CAR_NUMBER || !isNewCar)
+        get() = entryMode != CarEntryMode.NEW_CAR
+
+    val shouldShowExistingPolicyCard: Boolean
+        get() = shouldShowExistingPolicySection && (hasExistingPolicy || shouldShowTpInsurer)
 
     val shouldShowExpiryDate: Boolean
         get() = shouldShowExistingPolicySection && hasExistingPolicy
 
     val shouldShowPreviousInsurer: Boolean
-        get() = shouldShowExistingPolicySection && hasExistingPolicy && policyType == PolicyType.COMPREHENSIVE
+        get() = shouldShowExistingPolicySection && hasExistingPolicy
 
     val shouldShowTpInsurer: Boolean
-        get() = shouldShowExistingPolicySection && hasExistingPolicy && policyType == PolicyType.OD_ONLY
+        get() = shouldShowExistingPolicySection && policyType == PolicyType.OD_ONLY
 
     val shouldShowClaimAndNcb: Boolean
         get() = shouldShowExistingPolicySection && hasExistingPolicy && (policyType == PolicyType.OD_ONLY || policyType == PolicyType.COMPREHENSIVE)
@@ -147,22 +169,90 @@ data class NewCarUiState(
     val shouldShowClaimAndNcbSection: Boolean
         get() = shouldShowClaimAndNcb
 
+    val selectedPreviousInsurer: DropdownOption<String>?
+        get() = selectedInsurer
+
+    val formattedCarDetails: String
+        get() {
+            if (make.isBlank() && model.isBlank() && fuel.isBlank() && variant.isBlank()) {
+                return carDetailsSummary.ifBlank { "" }
+            }
+            val parts = listOf(make, model, fuel, variant).filter { it.isNotBlank() }
+            return parts.joinToString(", ").uppercase()
+        }
+
+    val canStepBackInsideSheet: Boolean
+        get() = isCarDetailsSheetOpen && sheetStep != CarDetailsStep.MAKE_MODEL
+
+    val sheetTitle: String
+        get() = sheetStep.title
+
+    val sheetSearchPlaceholder: String
+        get() = when (sheetStep) {
+            CarDetailsStep.MAKE_MODEL -> "Search car brand"
+            CarDetailsStep.FUEL -> "Search car fuel"
+            CarDetailsStep.VARIANT -> "Search car variant"
+        }
+
+    val filteredBrandModels: List<CarBrandModelItem>
+        get() {
+            if (sheetSearchQuery.isBlank()) return CarInsuranceData.brandModels
+            val query = sheetSearchQuery.trim().lowercase()
+            return CarInsuranceData.brandModels.filter {
+                it.displayName.lowercase().contains(query) ||
+                        it.makeName.lowercase().contains(query) ||
+                        it.modelName.lowercase().contains(query)
+            }
+        }
+
+    val filteredFuelTypes: List<String>
+        get() {
+            val baseFuels = CarInsuranceData.fuelTypes
+            if (sheetSearchQuery.isBlank()) return baseFuels
+            val query = sheetSearchQuery.trim().lowercase()
+            return baseFuels.filter { it.lowercase().contains(query) }
+        }
+
+    val filteredVariants: List<CarVariantItem>
+        get() {
+            val mId = draftBrandModel?.makeId ?: makeId.ifBlank { make }
+            val modId = draftBrandModel?.modelId ?: modelId.ifBlank { model }
+            val f = draftFuel ?: this.fuel
+            val allVariants = CarInsuranceData.getVariantsFor(mId, modId, f)
+            if (sheetSearchQuery.isBlank()) return allVariants
+            val query = sheetSearchQuery.trim().lowercase()
+            return allVariants.filter { it.variantName.lowercase().contains(query) }
+        }
+
     val isFormValid: Boolean
         get() {
             if (customerName.trim().isEmpty()) return false
             if (selectedRto == null) return false
-            if (selectedModel == null) return false
-            if (selectedVariant == null) return false
-            if (selectedFuel == null) return false
-            if ((entryMode == CarEntryMode.WITH_CAR_NUMBER || !isNewCar) && registrationDate.isBlank()) return false
-            if (manufacturingMonth.isBlank() || manufacturingYear.isBlank()) return false
-            if (shouldShowExistingPolicySection && hasExistingPolicy) {
-                if (shouldShowExpiryDate && policyExpiryDate.isBlank()) return false
-                if (shouldShowPreviousInsurer && selectedInsurer == null) return false
-                if (shouldShowTpInsurer && selectedTpInsurer == null) return false
-            }
             if (!consentGiven) return false
-            return true
+
+            val hasCarDetails = formattedCarDetails.isNotBlank() ||
+                    (selectedModel != null && selectedVariant != null && selectedFuel != null) ||
+                    (entryMode == CarEntryMode.WITH_CAR_NUMBER && carDetailsSummary.isNotBlank())
+            if (!hasCarDetails) return false
+
+            return when (entryMode) {
+                CarEntryMode.WITH_CAR_NUMBER,
+                CarEntryMode.WITHOUT_CAR_NUMBER -> {
+                    if (registrationDate.isBlank()) return false
+                    if (manufacturingMonth.isBlank() || manufacturingYear.isBlank()) return false
+                    if (hasExistingPolicy) {
+                        if (shouldShowExpiryDate && policyExpiryDate.isBlank()) return false
+                        if (shouldShowPreviousInsurer && selectedInsurer == null) return false
+                    }
+                    if (shouldShowTpInsurer && selectedTpInsurer == null) return false
+                    true
+                }
+                CarEntryMode.NEW_CAR -> {
+                    if (registrationDate.isBlank()) return false
+                    if (manufacturingMonth.isBlank() || manufacturingYear.isBlank()) return false
+                    true
+                }
+            }
         }
 
     val totalQuotesCount: Int

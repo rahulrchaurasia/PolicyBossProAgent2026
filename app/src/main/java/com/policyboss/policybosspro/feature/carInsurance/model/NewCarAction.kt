@@ -18,7 +18,17 @@ sealed interface NewCarAction {
     data class OnInsurerSelected(val option: DropdownOption<String>) : NewCarAction
     data class OnTpInsurerSelected(val option: DropdownOption<String>) : NewCarAction
 
-    // Car Specs Actions
+    // Unified Car Details Selection Actions
+    data object OpenCarDetailsSheet : NewCarAction
+    data object DismissCarDetailsSheet : NewCarAction
+    data class OnSheetStepClick(val step: CarDetailsStep) : NewCarAction
+    data object OnSheetBackClick : NewCarAction
+    data class OnDraftBrandModelSelected(val item: CarBrandModelItem) : NewCarAction
+    data class OnDraftFuelSelected(val fuel: String) : NewCarAction
+    data class OnDraftVariantSelected(val item: CarVariantItem) : NewCarAction
+    data class OnSheetSearchQueryChange(val query: String) : NewCarAction
+
+    // Car Specs Actions (Retained for backward compatibility)
     data class OnModelSelected(val option: DropdownOption<String>) : NewCarAction
     data class OnVariantSelected(val option: DropdownOption<String>) : NewCarAction
     data class OnFuelSelected(val option: DropdownOption<String>) : NewCarAction
