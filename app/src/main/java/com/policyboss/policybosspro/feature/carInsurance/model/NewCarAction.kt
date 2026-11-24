@@ -78,4 +78,33 @@ sealed interface NewCarAction {
     data object OnShareAllQuotesClick : NewCarAction
     data class OnPolicyDetailsClick(val quote: MotorQuote) : NewCarAction
     data object OnEditVehicleClick : NewCarAction
+
+    // Filter Screen Actions
+    data class OpenFilterScreen(
+        val category: com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory = com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory.SET_IDV
+    ) : NewCarAction
+    data class OnSelectFilterCategory(val category: com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory) : NewCarAction
+    data class OnUpdateDraftIdv(val idv: Float) : NewCarAction
+    data class OnSelectDraftCoverage(val coverageId: String) : NewCarAction
+    data class OnToggleDraftAddOn(val addOnId: String) : NewCarAction
+    data class OnToggleDraftAddOnExpanded(val addOnId: String) : NewCarAction
+    data class OnToggleSelectAllAddOns(val selectAll: Boolean) : NewCarAction
+    data class OnSelectZeroDepClaimLimit(val claimLimit: com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.ZeroDepClaimLimit) : NewCarAction
+    data object OnResetDraftFilters : NewCarAction
+    data class OnToggleDraftLiabilityCover(val coverId: String) : NewCarAction
+    data class OnUpdateDraftLiabilityRange(val coverId: String, val range: ClosedFloatingPointRange<Float>) : NewCarAction
+    data class OnSelectDraftUnNamedPassengerCover(val amount: String?) : NewCarAction
+    data class OnUpdateDraftElectricalAccessories(val amount: String) : NewCarAction
+    data class OnUpdateDraftNonElectricalAccessories(val amount: String) : NewCarAction
+    data class OnUpdateDraftAntiTheft(val enabled: Boolean) : NewCarAction
+    data class OnUpdateDraftPayAsYouDrive(val enabled: Boolean) : NewCarAction
+    data class OnSelectDraftVoluntaryExcess(val amount: String) : NewCarAction
+    data object DiscardDraftFilter : NewCarAction
+    data object ApplyFilter : NewCarAction
+
+    // Quote Controls & CPA Options Actions
+    data class OnSelectCpaCoverageOption(val option: CpaCoverageOption) : NewCarAction
+    data class OnShowVariantSheet(val show: Boolean) : NewCarAction
+    data class OnShowQuoteControlInfo(val title: String, val message: String) : NewCarAction
+    data object OnDismissQuoteControlInfo : NewCarAction
 }

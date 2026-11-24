@@ -45,6 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
@@ -633,5 +634,25 @@ private fun EarningsBreakdownRow(
             color = AppColors.Slate800
         )
     }
+}
+
+@Preview(name = "Insurer Quote Card - Recommended", showBackground = true)
+@Composable
+private fun InsurerQuoteCardPreview() {
+    val sampleQuote = com.policyboss.policybosspro.feature.carInsurance.model.MotorQuoteDefaults.generateDefaultQuotes().first()
+
+    InsurerQuoteCard(
+        quote = sampleQuote,
+        isZextraBundleEnabled = true,
+        isAddOnsExpanded = true,
+        isCompared = false,
+        onToggleAddOnsExpanded = {},
+        onToggleAddOn = {},
+        onToggleCompare = {},
+        onBuyNowClick = {},
+        onShareClick = {},
+        onPolicyDetailsClick = {},
+        modifier = Modifier.padding(16.dp)
+    )
 }
 

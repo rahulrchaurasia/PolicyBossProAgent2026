@@ -165,7 +165,11 @@ object CarInsuranceData {
 
     val variantsByModel = mapOf(
         "KIA_SELTOS" to listOf(
-            DropdownOption("SELTOS_PLUS_1.5_GTX_AT", "Plus 1.5 GTX AT - Diesel - (1493 CC)"),
+            DropdownOption("SELTOS_PLUS_1.5_GTX_AT", "PLUS 1.5 GTX AT (1493 CC)"),
+            DropdownOption("SELTOS_1.5_ANNIVERSARY", "1.5 ANNIVERSARY ED 1493 CC"),
+            DropdownOption("SELTOS_1.5_GTX_PLUS_DT", "1.5 GTX PLUS AT DUAL TONE 1493 CC"),
+            DropdownOption("SELTOS_1.5_GTX_PLUS_S", "1.5 GTX PLUS S AT 1493 CC"),
+            DropdownOption("SELTOS_1.5_HTE", "1.5 HTE 1493 CC"),
             DropdownOption("SELTOS_1.5_HTX_MT", "1.5 HTX MT (1497CC)"),
             DropdownOption("SELTOS_1.5_GTX_DCT", "1.5 Turbo GTX+ DCT (1482CC)")
         ),

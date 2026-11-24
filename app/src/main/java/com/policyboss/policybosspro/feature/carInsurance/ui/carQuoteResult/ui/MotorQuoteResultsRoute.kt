@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
 import com.policyboss.policybosspro.ui.ObserveAsEvents
 
@@ -19,6 +20,7 @@ fun MotorQuoteResultsRoute(
     onNavigateBack: () -> Unit,
     onNavigateToForm: () -> Unit,
     onNavigateToUrl: (url: String, title: String) -> Unit,
+    onNavigateToFilters: (FilterCategory) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -68,6 +70,7 @@ fun MotorQuoteResultsRoute(
         uiState = uiState,
         onAction = viewModel::onAction,
         onBackClick = onNavigateBack,
+        onNavigateToFilters = onNavigateToFilters,
         modifier = modifier
     )
 }

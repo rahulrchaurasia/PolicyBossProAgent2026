@@ -390,7 +390,7 @@ fun NewCarScreen(
                                 enabled = !uiState.isContinueWithCarNumber,
                                 modifier = Modifier.weight(1f)
                             )
-                        }
+                         }
                     }
                 }
 

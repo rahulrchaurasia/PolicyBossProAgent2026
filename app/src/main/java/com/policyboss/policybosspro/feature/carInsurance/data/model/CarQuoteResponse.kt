@@ -25,6 +25,8 @@ data class CarQuoteResponse(
     val maxEarnings: Int? = null,
     @SerialName("cpa_description")
     val cpaDescription: String? = null,
+    @SerialName("valid_upto")
+    val validUpto: String? = null,
     @SerialName("quotes")
     val quotes: List<MotorQuoteDto>? = null
 ) {

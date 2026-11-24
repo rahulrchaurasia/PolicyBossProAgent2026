@@ -150,6 +150,9 @@ sealed class Dest {
     @Serializable
     data object MotorQuoteResults : Dest()
 
+    @Serializable
+    data object MotorQuoteFilter : Dest()
+
     //endregion
 
     }

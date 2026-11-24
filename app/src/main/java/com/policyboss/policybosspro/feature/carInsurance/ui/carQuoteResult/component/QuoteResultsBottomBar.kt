@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
@@ -188,5 +189,17 @@ fun QuoteResultsBottomBar(
             }
         }
     }
+}
+
+@Preview(name = "Quote Results Bottom Bar", showBackground = true)
+@Composable
+private fun QuoteResultsBottomBarPreview() {
+    QuoteResultsBottomBar(
+        vehicleSummary = "Kia Seltos • Diesel • Plus 1.5 GTX AT - Diesel - (1493 CC) • Comprehensive • NCB status: 0%",
+        onEditVehicleClick = {},
+        onFiltersClick = {},
+        onSortClick = {},
+        onShareClick = {}
+    )
 }
 

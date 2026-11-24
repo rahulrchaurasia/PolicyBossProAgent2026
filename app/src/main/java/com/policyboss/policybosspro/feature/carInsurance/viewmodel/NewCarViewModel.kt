@@ -10,6 +10,7 @@ import com.policyboss.policybosspro.feature.carInsurance.model.CarDetailsStep
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.CarInsuranceData
 import com.policyboss.policybosspro.feature.carInsurance.model.CarVariantItem
+import com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption
 import com.policyboss.policybosspro.feature.carInsurance.model.DatePickerType
 import com.policyboss.policybosspro.feature.carInsurance.model.NavigationDirection
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
@@ -18,6 +19,9 @@ import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteFetchState
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteLoadingUiEvent
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.MotorQuoteFilterData
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.QuoteFilterState
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.ZeroDepClaimLimit
 import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -546,7 +550,12 @@ class NewCarViewModel @Inject constructor(
             is NewCarAction.OnVariantSelected -> {
                 _uiState.update {
                     val summary = "${it.selectedModel?.label ?: ""} - ${action.option.label} - ${it.selectedFuel?.label ?: ""}"
-                    it.copy(selectedVariant = action.option, carDetailsSummary = summary)
+                    it.copy(
+                        selectedVariant = action.option,
+                        variant = action.option.label,
+                        carDetailsSummary = summary,
+                        showVariantSheet = false
+                    )
                 }
             }
 
@@ -758,6 +767,265 @@ class NewCarViewModel @Inject constructor(
             is NewCarAction.OnEditVehicleClick -> {
                 sendFormEvent(NewCarUiEvent.NavigateBackToForm)
             }
+
+            is NewCarAction.OpenFilterScreen -> {
+                _uiState.update {
+                    it.copy(
+                        selectedFilterCategory = action.category,
+                        draftQuoteFilter = it.appliedQuoteFilter
+                    )
+                }
+            }
+
+            is NewCarAction.OnSelectFilterCategory -> {
+                _uiState.update { it.copy(selectedFilterCategory = action.category) }
+            }
+
+            is NewCarAction.OnUpdateDraftIdv -> {
+                _uiState.update {
+                    it.copy(
+                        draftQuoteFilter = it.draftQuoteFilter.copy(
+                            selectedIdv = action.idv,
+                            isIdvExplicitlyChanged = (action.idv != it.draftQuoteFilter.defaultIdv)
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnSelectDraftCoverage -> {
+                _uiState.update {
+                    it.copy(
+                        draftQuoteFilter = it.draftQuoteFilter.copy(
+                            selectedCoverageId = action.coverageId
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnToggleDraftAddOn -> {
+                _uiState.update { current ->
+                    val updated = current.draftQuoteFilter.selectedAddOnIds.toMutableSet()
+                    val adding = !updated.contains(action.addOnId)
+                    if (adding) {
+                        updated.add(action.addOnId)
+                    } else {
+                        updated.remove(action.addOnId)
+                    }
+                    val updatedClaimLimit = if (action.addOnId == "zero_dep" && adding) {
+                        ZeroDepClaimLimit.ONE_CLAIM
+                    } else {
+                        current.draftQuoteFilter.selectedZeroDepClaimLimit
+                    }
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(
+                            selectedAddOnIds = updated,
+                            selectedZeroDepClaimLimit = updatedClaimLimit
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnToggleSelectAllAddOns -> {
+                _uiState.update { current ->
+                    val allIds = MotorQuoteFilterData.addOnItems.map { it.id }.toSet()
+                    val newSelection = if (action.selectAll) allIds else emptySet()
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(
+                            selectedAddOnIds = newSelection,
+                            selectedZeroDepClaimLimit = if (action.selectAll) ZeroDepClaimLimit.ONE_CLAIM else current.draftQuoteFilter.selectedZeroDepClaimLimit
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnSelectZeroDepClaimLimit -> {
+                _uiState.update { current ->
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(
+                            selectedZeroDepClaimLimit = action.claimLimit
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnResetDraftFilters -> {
+                _uiState.update { current ->
+                    current.copy(
+                        draftQuoteFilter = QuoteFilterState(
+                            selectedIdv = current.draftQuoteFilter.defaultIdv,
+                            defaultIdv = current.draftQuoteFilter.defaultIdv,
+                            minIdv = current.draftQuoteFilter.minIdv,
+                            maxIdv = current.draftQuoteFilter.maxIdv,
+                            isIdvExplicitlyChanged = false,
+                            selectedCoverageId = "",
+                            selectedAddOnIds = emptySet(),
+                            selectedLiabilityCoverIds = emptySet(),
+                            selectedUnNamedPassengerCover = "No",
+                            electricalAccessoriesAmount = "0",
+                            nonElectricalAccessoriesAmount = "0",
+                            antiTheftDevice = false,
+                            payAsYouDrive = false,
+                            voluntaryExcess = "No"
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnToggleDraftAddOnExpanded -> {
+                _uiState.update { current ->
+                    val updated = current.draftQuoteFilter.expandedAddOnIds.toMutableSet()
+                    if (updated.contains(action.addOnId)) {
+                        updated.remove(action.addOnId)
+                    } else {
+                        updated.add(action.addOnId)
+                    }
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(expandedAddOnIds = updated)
+                    )
+                }
+            }
+
+            is NewCarAction.OnToggleDraftLiabilityCover -> {
+                _uiState.update { current ->
+                    val updated = current.draftQuoteFilter.selectedLiabilityCoverIds.toMutableSet()
+                    if (updated.contains(action.coverId)) {
+                        updated.remove(action.coverId)
+                    } else {
+                        updated.add(action.coverId)
+                    }
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(selectedLiabilityCoverIds = updated)
+                    )
+                }
+            }
+
+            is NewCarAction.OnUpdateDraftLiabilityRange -> {
+                _uiState.update { current ->
+                    val updated = current.draftQuoteFilter.liabilityCoverRanges.toMutableMap()
+                    updated[action.coverId] = action.range
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(liabilityCoverRanges = updated)
+                    )
+                }
+            }
+
+            is NewCarAction.OnSelectDraftUnNamedPassengerCover -> {
+                _uiState.update {
+                    it.copy(
+                        draftQuoteFilter = it.draftQuoteFilter.copy(
+                            selectedUnNamedPassengerCover = action.amount
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnUpdateDraftElectricalAccessories -> {
+                _uiState.update { current ->
+                    val cleaned = action.amount.filter { it.isDigit() }.take(6)
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(
+                            electricalAccessoriesAmount = cleaned
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnUpdateDraftNonElectricalAccessories -> {
+                _uiState.update { current ->
+                    val cleaned = action.amount.filter { it.isDigit() }.take(6)
+                    current.copy(
+                        draftQuoteFilter = current.draftQuoteFilter.copy(
+                            nonElectricalAccessoriesAmount = cleaned
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnUpdateDraftAntiTheft -> {
+                _uiState.update {
+                    it.copy(
+                        draftQuoteFilter = it.draftQuoteFilter.copy(
+                            antiTheftDevice = action.enabled
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnUpdateDraftPayAsYouDrive -> {
+                _uiState.update {
+                    it.copy(
+                        draftQuoteFilter = it.draftQuoteFilter.copy(
+                            payAsYouDrive = action.enabled
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.OnSelectDraftVoluntaryExcess -> {
+                _uiState.update {
+                    it.copy(
+                        draftQuoteFilter = it.draftQuoteFilter.copy(
+                            voluntaryExcess = action.amount
+                        )
+                    )
+                }
+            }
+
+            is NewCarAction.DiscardDraftFilter -> {
+                _uiState.update { it.copy(draftQuoteFilter = it.appliedQuoteFilter) }
+            }
+
+            is NewCarAction.ApplyFilter -> {
+                _uiState.update { current ->
+                    val clampedIdv = current.draftQuoteFilter.selectedIdv.coerceIn(
+                        current.draftQuoteFilter.minIdv,
+                        current.draftQuoteFilter.maxIdv
+                    )
+                    val finalDraft = current.draftQuoteFilter.copy(selectedIdv = clampedIdv)
+                    current.copy(
+                        draftQuoteFilter = finalDraft,
+                        appliedQuoteFilter = finalDraft
+                    )
+                }
+            }
+
+            is NewCarAction.OnSelectCpaCoverageOption -> {
+                _uiState.update { current ->
+                    val zextraEnabled = action.option == CpaCoverageOption.ZEXTRA_SWITCH
+                    val notice = when (action.option) {
+                        CpaCoverageOption.ZEXTRA_SWITCH -> "Special Zextra Bundle (CPA + RSA) included"
+                        CpaCoverageOption.INSURER_CPA -> "Insurer CPA included"
+                        CpaCoverageOption.NO_CPA -> "CPA: Don't have Personal Accident cover"
+                    }
+                    current.copy(
+                        cpaCoverageOption = action.option,
+                        isZextraBundleEnabled = zextraEnabled,
+                        cpaNoticeText = notice
+                    )
+                }
+            }
+
+            is NewCarAction.OnShowVariantSheet -> {
+                _uiState.update { it.copy(showVariantSheet = action.show) }
+            }
+
+            is NewCarAction.OnShowQuoteControlInfo -> {
+                _uiState.update {
+                    it.copy(
+                        infoDialogTitle = action.title,
+                        infoDialogMessage = action.message
+                    )
+                }
+            }
+
+            is NewCarAction.OnDismissQuoteControlInfo -> {
+                _uiState.update {
+                    it.copy(
+                        infoDialogTitle = null,
+                        infoDialogMessage = null
+                    )
+                }
+            }
         }
     }
 
@@ -832,6 +1100,7 @@ class NewCarViewModel @Inject constructor(
                                     quotesCount = quotesCount
                                 ),
                                 quotes = domainQuotes,
+                                quoteValidUpto = result.data.validUpto,
                                 expandedAddOnQuoteIds = setOf(domainQuotes.firstOrNull()?.id ?: "ACKO-01"),
                                 errorMessage = null
                             )

@@ -22,11 +22,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,18 +38,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
+import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
+import com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption
+import com.policyboss.policybosspro.feature.carInsurance.model.MotorQuote
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
-import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.CpaInfoSection
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FeedbackDialog
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FilterBottomSheet
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.InsurerQuoteCard
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteResultsBottomBar
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteSummaryCard
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteValidityBanner
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.SortBottomSheet
+import com.policyboss.policybosspro.ui.components.bottomSheet.AppSearchableBottomSheet
 import com.policyboss.policybosspro.ui.theme.AppColors
 
 @Composable
@@ -55,6 +63,7 @@ fun MotorQuoteResultsScreen(
     uiState: NewCarUiState,
     onAction: (NewCarAction) -> Unit,
     onBackClick: () -> Unit,
+    onNavigateToFilters: (FilterCategory) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -77,7 +86,7 @@ fun MotorQuoteResultsScreen(
             QuoteResultsBottomBar(
                 vehicleSummary = uiState.vehicleSummaryText,
                 onEditVehicleClick = { onAction(NewCarAction.OnEditVehicleClick) },
-                onFiltersClick = { onAction(NewCarAction.OnShowFilterSheet(true)) },
+                onFiltersClick = { onNavigateToFilters(FilterCategory.SET_IDV) },
                 onSortClick = { onAction(NewCarAction.OnShowSortSheet(true)) },
                 onShareClick = { onAction(NewCarAction.OnShareAllQuotesClick) }
             )
@@ -92,7 +101,7 @@ fun MotorQuoteResultsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(340.dp)
+                    .height(360.dp)
                     .background(topGradient)
             )
 
@@ -102,7 +111,7 @@ fun MotorQuoteResultsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                // Top App Bar
+                // 1. Top App Bar
                 item(key = "top_bar") {
                     Row(
                         modifier = Modifier
@@ -147,25 +156,21 @@ fun MotorQuoteResultsScreen(
                     }
                 }
 
-                // Summary Card
-                item(key = "summary_card") {
-                    QuoteSummaryCard(
-                        totalQuotes = uiState.totalQuotesCount,
-                        minPremium = uiState.minPremium,
-                        maxEarnings = uiState.maxEarnings,
-                        isZextraBundleEnabled = uiState.isZextraBundleEnabled,
-                        onToggleZextraBundle = { onAction(NewCarAction.ToggleZextraBundle) },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        onInfoClick = { onAction(NewCarAction.OnCpaEditClick) }
+                // 2. Quote Validity Banner
+                item(key = "quote_validity_banner") {
+                    QuoteValidityBanner(
+                        validUptoText = uiState.quoteValidUptoText,
+                        onInfoClick = { onAction(NewCarAction.OnCpaEditClick) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
 
-                // CPA Info Banner
-                item(key = "cpa_info") {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    CpaInfoSection(
-                        cpaText = uiState.cpaNoticeText,
-                        onEditClick = { onAction(NewCarAction.OnCpaEditClick) },
+                // 3. Summary Card (with embedded blue VahanDataCard and QuoteControlsCard)
+                item(key = "summary_card") {
+                    QuoteSummaryCard(
+                        uiState = uiState,
+                        onAction = onAction,
+                        onNavigateToFilters = onNavigateToFilters,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
@@ -285,25 +290,26 @@ fun MotorQuoteResultsScreen(
             }
 
             // Floating Headset Support Button on Right Edge (matches mockup)
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 8.dp)
-                    .shadow(elevation = 6.dp, shape = CircleShape)
-                    .clip(CircleShape)
-                    .clickable { onAction(NewCarAction.OnCpaEditClick) },
-                shape = CircleShape,
-                color = Color.White
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_headset),
-                    contentDescription = "Customer Support",
-                    tint = AppColors.Slate600,
-                    modifier = Modifier
-                        .padding(9.dp)
-                        .size(22.dp)
-                )
-            }
+//            Surface(
+//                modifier = Modifier
+//                    .align(Alignment.CenterEnd)
+//                    .padding(end = 8.dp)
+//                    .shadow(elevation = 6.dp, shape = CircleShape)
+//                    .clip(CircleShape)
+//                    .clickable { onAction(NewCarAction.OnCpaEditClick) },
+//                shape = CircleShape,
+//                color = Color.White
+//            )
+//            {
+//                Icon(
+//                    painter = painterResource(R.drawable.ic_headset),
+//                    contentDescription = "Customer Support",
+//                    tint = AppColors.Slate600,
+//                    modifier = Modifier
+//                        .padding(9.dp)
+//                        .size(22.dp)
+//                )
+//            }
         }
     }
 
@@ -333,5 +339,69 @@ fun MotorQuoteResultsScreen(
             onDismissRequest = { onAction(NewCarAction.OnShowFeedbackDialog(false)) }
         )
     }
+
+    // Interactive Variant Selection Bottom Sheet
+    if (uiState.showVariantSheet) {
+        AppSearchableBottomSheet(
+            title = "Select Variant",
+            items = uiState.variantOptions,
+            selectedItem = uiState.selectedVariant,
+            onItemSelected = { option ->
+                onAction(NewCarAction.OnVariantSelected(option))
+            },
+            onDismiss = { onAction(NewCarAction.OnShowVariantSheet(false)) }
+        )
+    }
+
+    // Quote Control Info Dialog (IDV, Addons, CPA)
+    if (uiState.infoDialogTitle != null && uiState.infoDialogMessage != null) {
+        AlertDialog(
+            onDismissRequest = { onAction(NewCarAction.OnDismissQuoteControlInfo) },
+            title = {
+                Text(
+                    text = uiState.infoDialogTitle.orEmpty(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = AppColors.TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = uiState.infoDialogMessage.orEmpty(),
+                    fontSize = 13.5.sp,
+                    color = AppColors.TextSecondary,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onAction(NewCarAction.OnDismissQuoteControlInfo) }) {
+                    Text("OK", color = AppColors.PrimaryBlue, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+}
+
+@Preview(name = "Motor Quote Results Screen", showBackground = true, widthDp = 375, heightDp = 812)
+@Composable
+private fun MotorQuoteResultsScreenPreview() {
+    MotorQuoteResultsScreen(
+        uiState = NewCarUiState(
+            make = "Kia",
+            model = "Seltos",
+            fuel = "Diesel",
+            variant = "PLUS 1.5 GTX AT (1493 CC)",
+            registrationNumber = "RJ14CV0002",
+            vahanData = "KIA INDIA PRIVATE LIMITED, SELTOS D1.5 6AT GTX PLUS, DIESEL",
+            crnNumber = "12678184",
+            cpaCoverageOption = CpaCoverageOption.ZEXTRA_SWITCH,
+            isZextraBundleEnabled = true,
+            quotes = com.policyboss.policybosspro.feature.carInsurance.model.MotorQuoteDefaults.generateDefaultQuotes()
+        ),
+        onAction = {},
+        onBackClick = {}
+    )
 }
 

@@ -1,6 +1,8 @@
 package com.policyboss.policybosspro.feature.carInsurance.model
 
 import androidx.compose.runtime.Immutable
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.QuoteFilterState
 import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
 
 enum class OwnershipType(val displayName: String) {
@@ -25,6 +27,12 @@ sealed interface QuoteFetchState {
     ) : QuoteFetchState
 
     data class Error(val message: String) : QuoteFetchState
+}
+
+enum class CpaCoverageOption {
+    ZEXTRA_SWITCH,
+    INSURER_CPA,
+    NO_CPA
 }
 
 @Immutable
@@ -111,6 +119,7 @@ data class NewCarUiState(
     // Motor Quote Results State
     // ==========================================
     val quotes: List<MotorQuote> = emptyList(),
+    val quoteValidUpto: String? = null,
     val isZextraBundleEnabled: Boolean = true,
     val cpaNoticeText: String = "CPA: Don't have Personal Accident cover",
     val expandedAddOnQuoteIds: Set<String> = setOf("ACKO-01"),
@@ -121,7 +130,19 @@ data class NewCarUiState(
     val showFilterSheet: Boolean = false,
     val showFeedbackDialog: Boolean = false,
     val feedbackRating: Int = 5,
-    val feedbackText: String = ""
+    val feedbackText: String = "",
+
+    // Filter Screen State
+    val selectedFilterCategory: FilterCategory = FilterCategory.SET_IDV,
+    val appliedQuoteFilter: QuoteFilterState = QuoteFilterState(),
+    val draftQuoteFilter: QuoteFilterState = QuoteFilterState(),
+
+    // Quote Controls & CPA Options State
+    val cpaCoverageOption: CpaCoverageOption = CpaCoverageOption.INSURER_CPA,
+    val crnNumber: String = "12678184",
+    val showVariantSheet: Boolean = false,
+    val infoDialogTitle: String? = null,
+    val infoDialogMessage: String? = null
 ) {
     val isLoading: Boolean
         get() = quoteState is QuoteFetchState.Loading
@@ -309,5 +330,96 @@ data class NewCarUiState(
             val policyName = if (selectedPolicyType.isNotBlank()) selectedPolicyType else "Comprehensive"
             val ncbText = selectedNcb?.label ?: "0%"
             return "$modelName • $fuelName • $variantName • $policyName • NCB status: $ncbText"
+        }
+
+    val formattedVehicleTitle: String
+        get() {
+            val m = make.trim()
+            val mod = model.trim().ifBlank { selectedModel?.label ?: "" }
+            if (m.isNotBlank() && mod.isNotBlank()) {
+                return if (mod.startsWith(m, ignoreCase = true)) {
+                    mod
+                } else {
+                    "$m $mod"
+                }
+            }
+            if (mod.isNotBlank()) return mod
+            if (m.isNotBlank()) return m
+            if (carDetailsSummary.isNotBlank()) {
+                val parts = carDetailsSummary.split(",")
+                if (parts.size >= 2) return "${parts[0].trim()} ${parts[1].trim()}"
+                return parts.first().trim()
+            }
+            return "Honda Amaze"
+        }
+
+    val formattedVehicleSubtitle: String
+        get() {
+            val f = fuel.trim().ifBlank { selectedFuel?.label ?: "" }
+            val v = variant.trim().ifBlank { selectedVariant?.label ?: "" }
+            val parts = listOf(f, v).filter { it.isNotBlank() }
+            if (parts.isNotEmpty()) return parts.joinToString(" • ")
+            if (carDetailsSummary.isNotBlank()) {
+                val split = carDetailsSummary.split(",")
+                if (split.size > 2) {
+                    return split.drop(2).map { it.trim() }.filter { it.isNotBlank() }.joinToString(" • ")
+                }
+            }
+            return "Petrol • 1.2 S CVT (1198CC)"
+        }
+
+    val formattedRegistrationNumber: String
+        get() {
+            if (entryMode == CarEntryMode.NEW_CAR || registrationNumber.isBlank()) {
+                return if (selectedRto != null && selectedRto.value.isNotBlank() && entryMode == CarEntryMode.WITHOUT_CAR_NUMBER) {
+                    "RTO: ${selectedRto.value}"
+                } else {
+                    "NEW CAR"
+                }
+            }
+            val compact = registrationNumber.replace("-", "").replace(Regex("\\s+"), "").uppercase()
+            val match = Regex("^([A-Z]{2})([0-9]{1,2})([A-Z]{1,3})([0-9]{4})$").find(compact)
+            return if (match != null) {
+                "${match.groupValues[1]} ${match.groupValues[2]} ${match.groupValues[3]} ${match.groupValues[4]}"
+            } else {
+                registrationNumber.replace("-", " ").replace(Regex("\\s+"), " ").trim().uppercase()
+            }
+        }
+
+    val quoteValidUptoText: String
+        get() {
+            if (!quoteValidUpto.isNullOrBlank()) {
+                val candidate = quoteValidUpto.trim()
+                val patterns = listOf(
+                    "yyyy-MM-dd",
+                    "dd/MM/yyyy",
+                    "dd-MM-yyyy",
+                    "yyyy/MM/dd",
+                    "dd-MMM-yyyy",
+                    "dd MMM yyyy"
+                )
+                for (pattern in patterns) {
+                    try {
+                        val parsed = java.text.SimpleDateFormat(pattern, java.util.Locale.ENGLISH).parse(candidate)
+                        if (parsed != null) {
+                            return java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.ENGLISH).format(parsed)
+                        }
+                    } catch (_: Exception) { }
+                }
+            }
+            // Guardrail fallback: Current date formatted as "dd MMM yyyy" (e.g. "21 Nov 2026")
+            val calendar = java.util.Calendar.getInstance()
+            return java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.ENGLISH).format(calendar.time)
+        }
+
+    val vahanDescriptionText: String
+        get() {
+            if (vahanData.isNotBlank()) return vahanData
+            if (vahanDetails.isNotBlank()) return vahanDetails
+            if (formattedCarDetails.isNotBlank()) return formattedCarDetails
+            if (carDetailsSummary.isNotBlank()) return carDetailsSummary
+            val parts = listOf(make, model, variant, fuel).filter { it.isNotBlank() }
+            if (parts.isNotEmpty()) return parts.joinToString(", ").uppercase()
+            return "KIA INDIA PRIVATE LIMITED, SELTOS D1.5 6AT GTX PLUS, DIESEL, 1493CC"
         }
 }

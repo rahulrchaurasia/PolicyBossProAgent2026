@@ -9,8 +9,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import com.policyboss.policybosspro.anim.NavigationAnimations
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
+import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.ui.NewCarRoute
 import com.policyboss.policybosspro.feature.carInsurance.ui.QuoteLoadingRoute
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.MotorQuoteFilterRoute
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.ui.MotorQuoteResultsRoute
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
 import com.policyboss.policybosspro.feature.home.ui_home.HomeRoute
@@ -181,6 +183,30 @@ fun NavGraphBuilder.homeGraph(
                     ) {
                         launchSingleTop = true
                     }
+                },
+                onNavigateToFilters = { category ->
+                    viewModel.onAction(NewCarAction.OpenFilterScreen(category))
+                    appNavigator.navigateTo(Dest.MotorQuoteFilter) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable<Dest.MotorQuoteFilter>(
+            enterTransition = { NavigationAnimations.slideInRight },
+            exitTransition = { NavigationAnimations.slideOutLeft },
+            popEnterTransition = { NavigationAnimations.slideInLeft },
+            popExitTransition = { NavigationAnimations.slideOutRight }
+        ) { backStackEntry ->
+            val ownerEntry = remember(backStackEntry) {
+                appNavigator.findBackStackEntryOrNull<Dest.NewCarInsurance>() ?: backStackEntry
+            }
+            val viewModel: NewCarViewModel = hiltViewModel(ownerEntry)
+            MotorQuoteFilterRoute(
+                viewModel = viewModel,
+                onNavigateBack = {
+                    appNavigator.navigateBack()
                 }
             )
         }
