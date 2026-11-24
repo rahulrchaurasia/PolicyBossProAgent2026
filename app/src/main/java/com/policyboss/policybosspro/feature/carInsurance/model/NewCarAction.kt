@@ -6,6 +6,14 @@ sealed interface NewCarAction {
     // Mode Action
     data class UpdateEntryMode(val mode: CarEntryMode) : NewCarAction
 
+    // Registration lookup (vehicle_info_user + model_list) shown on the quote loader
+    data object OnRetryVehicleLookup : NewCarAction
+    data object OnCancelVehicleLookup : NewCarAction
+    data object OnContinueWithoutVehicleInfo : NewCarAction
+
+    // Live Make/Model catalogue (bottom sheet)
+    data object OnRetryModelList : NewCarAction
+
     // Customer Name
     data class OnCustomerNameChange(val name: String) : NewCarAction
     data class OnRtoSelected(val option: DropdownOption<String>) : NewCarAction

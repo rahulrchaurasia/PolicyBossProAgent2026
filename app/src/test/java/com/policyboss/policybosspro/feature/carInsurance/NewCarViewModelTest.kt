@@ -36,13 +36,8 @@ class NewCarViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    private val dummyApi = object : CarInsuranceApi {
-        override suspend fun getCarQuotes(request: CarQuoteRequest): Response<CarQuoteResponse> {
-            error("Fake repository overrides getCarQuotes directly")
-        }
-    }
 
-    private fun fakeRepository(): CarInsuranceRepository = object : CarInsuranceRepository(dummyApi) {
+    private fun fakeRepository(): CarInsuranceRepository = object : FakeCarInsuranceRepository() {
         override suspend fun getCarQuotes(request: CarQuoteRequest): Resource<CarQuoteResponse> =
             Resource.Success(CarQuoteResponse())
     }
@@ -61,6 +56,7 @@ class NewCarViewModelTest {
     fun `tp only with existing policy shows expiry date and previous insurer but hides tp insurer and claims`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         // Switch to TP Only
         vm.onAction(NewCarAction.OnPolicyTypeSelected("TP Only"))
@@ -89,6 +85,7 @@ class NewCarViewModelTest {
     fun `tp only without existing policy hides all rollover fields`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         vm.onAction(NewCarAction.OnPolicyTypeSelected("TP Only"))
         vm.onAction(NewCarAction.OnExistingPolicyToggle(false))
@@ -107,6 +104,7 @@ class NewCarViewModelTest {
     fun `od only with existing policy shows expiry date, previous insurer, tp insurer, claim and ncb`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         // Switch to OD Only
         vm.onAction(NewCarAction.SelectPolicyType(PolicyType.OD_ONLY))
@@ -140,9 +138,12 @@ class NewCarViewModelTest {
     fun `od only without existing policy keeps card and tp insurer visible but hides expiry, previous insurer and claims`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         vm.onAction(NewCarAction.SelectPolicyType(PolicyType.OD_ONLY))
         vm.onAction(NewCarAction.OnExistingPolicyToggle(false))
+        // The vahan lookup has no TP insurer, so the user picks one
+        vm.onAction(NewCarAction.OnTpInsurerSelected(DropdownOption("ACKO", "Acko General Insurance")))
 
         val state = vm.uiState.value
         assertTrue(state.shouldShowExistingPolicySection)
@@ -152,7 +153,7 @@ class NewCarViewModelTest {
         assertFalse(state.shouldShowPreviousInsurer)
         assertFalse(state.shouldShowClaimAndNcb)
 
-        // Since default state has selectedTpInsurer populated, form is valid
+        // With the TP insurer selected, the form is valid
         assertTrue(state.isFormValid)
 
         // Missing TP insurer in OD + No DOES invalidate form!
@@ -164,6 +165,7 @@ class NewCarViewModelTest {
     fun `comprehensive with existing policy shows expiry date, previous insurer, claim and ncb but hides tp insurer`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         // Default mode is Comprehensive
         vm.onAction(NewCarAction.SelectPolicyType(PolicyType.COMPREHENSIVE))
@@ -196,6 +198,7 @@ class NewCarViewModelTest {
     fun `comprehensive without existing policy hides all rollover fields`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         vm.onAction(NewCarAction.SelectPolicyType(PolicyType.COMPREHENSIVE))
         vm.onAction(NewCarAction.OnExistingPolicyToggle(false))
@@ -214,6 +217,7 @@ class NewCarViewModelTest {
     fun `claim toggle to yes automatically locks ncb to zero percent`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         // First select 25% NCB
         vm.onAction(NewCarAction.OnNcbSelected(DropdownOption("25", "25%")))
@@ -235,6 +239,7 @@ class NewCarViewModelTest {
     fun `mode A WITH_CAR_NUMBER configures header banner prefilled vehicle and rollover`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         val state = vm.uiState.value
         assertEquals(CarEntryMode.WITH_CAR_NUMBER, state.entryMode)
@@ -344,6 +349,7 @@ class NewCarViewModelTest {
     fun `openCarDetailsSheet with prefilled vehicle in WITH_CAR_NUMBER opens at Stage 3 VARIANT with draft prefilled`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         vm.onAction(NewCarAction.OpenCarDetailsSheet)
 
@@ -433,10 +439,11 @@ class NewCarViewModelTest {
     fun `dismissing sheet via DismissCarDetailsSheet discards draft without overwriting committed vehicle`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
-        // Originally KIA SELTOS
+        // Originally KIA SELTOS (vahan summary format)
         val originalVehicle = vm.uiState.value.formattedCarDetails
-        assertEquals("KIA, SELTOS, DIESEL, PLUS 1.5 GTX AT (1493CC)", originalVehicle)
+        assertEquals("KIA-SELTOS-Plus 1.5 GTX AT (1493CC)-DIESEL- (1493 CC)", originalVehicle)
 
         vm.onAction(NewCarAction.OpenCarDetailsSheet)
 
@@ -489,8 +496,13 @@ class NewCarViewModelTest {
 
     @Test
     fun `search query filtering filters brandModels, fuelTypes, and variants`() {
-        val vm = NewCarViewModel(fakeRepository())
+        val liveModels = listOf(
+            com.policyboss.policybosspro.feature.carInsurance.model.VehicleModel("101", "HYUNDAI", "CRETA", "HYUNDAI CRETA"),
+            com.policyboss.policybosspro.feature.carInsurance.model.VehicleModel("102", "MARUTI", "SWIFT", "MARUTI SWIFT")
+        )
+        val vm = NewCarViewModel(object : FakeCarInsuranceRepository(models = { Resource.Success(liveModels) }) {})
         vm.initForMode(entryMode = CarEntryMode.WITHOUT_CAR_NUMBER)
+        testDispatcher.scheduler.advanceUntilIdle()
         vm.onAction(NewCarAction.OpenCarDetailsSheet)
 
         // Search brand models
@@ -517,6 +529,7 @@ class NewCarViewModelTest {
     fun `with car number mode guards customer name, rto, mfg date, and reg date from changes`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         val initialState = vm.uiState.value
         assertTrue(initialState.isContinueWithCarNumber)

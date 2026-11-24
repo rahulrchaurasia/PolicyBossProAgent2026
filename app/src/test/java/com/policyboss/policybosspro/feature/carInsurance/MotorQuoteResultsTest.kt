@@ -33,14 +33,9 @@ class MotorQuoteResultsTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    private val dummyApi = object : CarInsuranceApi {
-        override suspend fun getCarQuotes(request: CarQuoteRequest): Response<CarQuoteResponse> {
-            error("Fake repository overrides getCarQuotes")
-        }
-    }
 
     private fun fakeRepository(quotes: List<MotorQuote> = MotorQuoteDefaults.generateDefaultQuotes()) =
-        object : CarInsuranceRepository(dummyApi) {
+        object : FakeCarInsuranceRepository() {
             override suspend fun getCarQuotes(request: CarQuoteRequest): Resource<CarQuoteResponse> =
                 Resource.Success(
                     CarQuoteResponse(

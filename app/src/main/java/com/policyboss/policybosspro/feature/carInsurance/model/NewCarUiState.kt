@@ -30,6 +30,28 @@ sealed interface QuoteFetchState {
     data class Error(val message: String) : QuoteFetchState
 }
 
+/**
+ * Lifecycle of the registration-number vahan lookup (vehicle_info_user + model_list)
+ * that runs before the WITH_CAR_NUMBER form is shown. Rendered with the quote loader.
+ */
+@Immutable
+sealed interface VehicleLookupState {
+    data object Idle : VehicleLookupState
+    data object Loading : VehicleLookupState
+    data class Error(val message: String) : VehicleLookupState
+}
+
+/**
+ * Lifecycle of the live Make/Model catalogue shown in the car details bottom sheet.
+ */
+@Immutable
+sealed interface ModelListState {
+    data object Idle : ModelListState
+    data object Loading : ModelListState
+    data object Success : ModelListState
+    data class Error(val message: String) : ModelListState
+}
+
 enum class CpaCoverageOption {
     ZEXTRA_SWITCH,
     INSURER_CPA,
@@ -95,6 +117,11 @@ data class NewCarUiState(
     val draftVariant: CarVariantItem? = null,
     val sheetSearchQuery: String = "",
 
+    // Live Make/Model catalogue (vehicles/model_list) & registration lookup
+    val brandModels: List<CarBrandModelItem> = emptyList(),
+    val modelListState: ModelListState = ModelListState.Idle,
+    val vehicleLookupState: VehicleLookupState = VehicleLookupState.Idle,
+
     // Dates
     val registrationDate: String = "",
     val manufacturingDate: String = "",
@@ -152,6 +179,9 @@ data class NewCarUiState(
     val isContinueWithCarNumber: Boolean
         get() = entryMode == CarEntryMode.WITH_CAR_NUMBER
 
+    val isVehicleLookupInProgress: Boolean
+        get() = vehicleLookupState !is VehicleLookupState.Idle
+
     val displayCustomerFirstName: String
         get() = customerName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
 
@@ -200,6 +230,10 @@ data class NewCarUiState(
             if (make.isBlank() && model.isBlank() && fuel.isBlank() && variant.isBlank()) {
                 return carDetailsSummary.ifBlank { "" }
             }
+            // Vahan-fetched vehicles keep the API summary (e.g. "MARUTI-WAGON R-VXI+-PETROL- (998 CC)")
+            if (entryMode == CarEntryMode.WITH_CAR_NUMBER && carDetailsSummary.isNotBlank()) {
+                return carDetailsSummary
+            }
             val parts = listOf(make, model, fuel, variant).filter { it.isNotBlank() }
             return parts.joinToString(", ").uppercase()
         }
@@ -219,10 +253,11 @@ data class NewCarUiState(
 
     val filteredBrandModels: List<CarBrandModelItem>
         get() {
-            if (sheetSearchQuery.isBlank()) return CarInsuranceData.brandModels
+            if (sheetSearchQuery.isBlank()) return brandModels
             val query = sheetSearchQuery.trim().lowercase()
-            return CarInsuranceData.brandModels.filter {
+            return brandModels.filter {
                 it.displayName.lowercase().contains(query) ||
+                        it.vehicleName.lowercase().contains(query) ||
                         it.makeName.lowercase().contains(query) ||
                         it.modelName.lowercase().contains(query)
             }
@@ -241,7 +276,21 @@ data class NewCarUiState(
             val mId = draftBrandModel?.makeId ?: makeId.ifBlank { make }
             val modId = draftBrandModel?.modelId ?: modelId.ifBlank { model }
             val f = draftFuel ?: this.fuel
-            val allVariants = CarInsuranceData.getVariantsFor(mId, modId, f)
+            val catalogueVariants = CarInsuranceData.getVariantsFor(mId, modId, f)
+            // Keep the committed (e.g. vahan-fetched) variant selectable for the same Make + Model
+            val isCommittedVehicle = (draftBrandModel == null ||
+                    draftBrandModel.modelId.equals(modelId, ignoreCase = true)) &&
+                    (draftFuel == null || draftFuel.equals(fuel, ignoreCase = true))
+            val committedVariant = if (isCommittedVehicle && variant.isNotBlank() &&
+                catalogueVariants.none {
+                    it.variantId.equals(variantId, ignoreCase = true) || it.variantName.equals(variant, ignoreCase = true)
+                }
+            ) {
+                CarVariantItem(variantId = variantId.ifBlank { variant }, variantName = variant, fuelType = fuel)
+            } else {
+                null
+            }
+            val allVariants = listOfNotNull(committedVariant) + catalogueVariants
             if (sheetSearchQuery.isBlank()) return allVariants
             val query = sheetSearchQuery.trim().lowercase()
             return allVariants.filter { it.variantName.lowercase().contains(query) }

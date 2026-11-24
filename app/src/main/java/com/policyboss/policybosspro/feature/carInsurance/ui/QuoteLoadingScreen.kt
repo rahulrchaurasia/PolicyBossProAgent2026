@@ -123,9 +123,14 @@ fun QuoteLoadingScreen(
     quoteState: QuoteFetchState,
     onCloseClick: () -> Unit,
     onRetryClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    errorTitle: String = "Unable to fetch quotes",
+    secondaryActionLabel: String = "Back to form",
+    progressDescription: String = "Curating car insurance quotes",
+    onSecondaryClick: (() -> Unit)? = null
 ) {
-    val headingText = if (customerFirstName.isNotBlank()) {
+    val headingText = title ?: if (customerFirstName.isNotBlank()) {
         "$customerFirstName, we are curating the\nbest quotes for you!"
     } else {
         "We are curating the\nbest quotes for you!"
@@ -187,9 +192,11 @@ fun QuoteLoadingScreen(
             when (quoteState) {
                 is QuoteFetchState.Error -> {
                     QuoteLoadingErrorContent(
+                        errorTitle = errorTitle,
                         errorMessage = quoteState.message,
+                        secondaryActionLabel = secondaryActionLabel,
                         onRetryClick = onRetryClick,
-                        onCloseClick = onCloseClick
+                        onSecondaryClick = onSecondaryClick ?: onCloseClick
                     )
                 }
 
@@ -228,7 +235,7 @@ fun QuoteLoadingScreen(
                         CircularProgressIndicator(
                             modifier = Modifier
                                 .size(24.dp)
-                                .semantics { contentDescription = "Curating car insurance quotes" },
+                                .semantics { contentDescription = progressDescription },
                             color = AppColors.PrimaryBlue,
                             trackColor = AppColors.PrimaryBlue.copy(alpha = 0.14f),
                             strokeWidth = 2.5.dp
@@ -249,9 +256,11 @@ fun QuoteLoadingScreen(
 
 @Composable
 private fun QuoteLoadingErrorContent(
+    errorTitle: String,
     errorMessage: String,
+    secondaryActionLabel: String,
     onRetryClick: () -> Unit,
-    onCloseClick: () -> Unit,
+    onSecondaryClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -278,7 +287,7 @@ private fun QuoteLoadingErrorContent(
         Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            text = "Unable to fetch quotes",
+            text = errorTitle,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = AppColors.TextPrimary,
@@ -307,9 +316,9 @@ private fun QuoteLoadingErrorContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        TextButton(onClick = onCloseClick) {
+        TextButton(onClick = onSecondaryClick) {
             Text(
-                text = "Back to form",
+                text = secondaryActionLabel,
                 color = AppColors.TextSecondary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium

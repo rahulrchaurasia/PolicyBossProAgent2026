@@ -36,11 +36,6 @@ class NewCarQuoteLoadingTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    private val dummyApi = object : CarInsuranceApi {
-        override suspend fun getCarQuotes(request: CarQuoteRequest): Response<CarQuoteResponse> {
-            error("Fake repository overrides getCarQuotes directly")
-        }
-    }
 
     @Before
     fun setUp() {
@@ -54,7 +49,7 @@ class NewCarQuoteLoadingTest {
 
     private fun fakeRepository(
         handler: suspend (CarQuoteRequest) -> Resource<CarQuoteResponse>
-    ): CarInsuranceRepository = object : CarInsuranceRepository(dummyApi) {
+    ): CarInsuranceRepository = object : FakeCarInsuranceRepository() {
         override suspend fun getCarQuotes(request: CarQuoteRequest): Resource<CarQuoteResponse> =
             handler(request)
     }
@@ -90,6 +85,7 @@ class NewCarQuoteLoadingTest {
             }
         )
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         val formEvents = mutableListOf<NewCarUiEvent>()
         val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
@@ -166,6 +162,7 @@ class NewCarQuoteLoadingTest {
             }
         )
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         val formEvents = mutableListOf<NewCarUiEvent>()
         val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
@@ -201,6 +198,7 @@ class NewCarQuoteLoadingTest {
         val deferred = CompletableDeferred<Resource<CarQuoteResponse>>()
         val vm = NewCarViewModel(fakeRepository { deferred.await() })
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
         val loadingJob = launch { vm.quoteLoadingEvent.collect { loadingEvents.add(it) } }
@@ -259,6 +257,7 @@ class NewCarQuoteLoadingTest {
     fun `init with car number configures WITH_CAR_NUMBER mode, Vahan data, and pre-filled vehicle details`() {
         val vm = NewCarViewModel(fakeRepository { Resource.Success(CarQuoteResponse()) })
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         val state = vm.uiState.value
         assertEquals(CarEntryMode.WITH_CAR_NUMBER, state.entryMode)

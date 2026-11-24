@@ -31,7 +31,9 @@ data class CarBrandModelItem(
     val makeName: String,
     val modelId: String,
     val modelName: String,
-    val isPopular: Boolean = false
+    val isPopular: Boolean = false,
+    /** Full catalogue name from the live model list (e.g. "MARUTI WAGON R"); searchable. */
+    val vehicleName: String = ""
 ) {
     val displayName: String = "$makeName, $modelName"
     val key: String = "${makeId}_${modelId}".uppercase()

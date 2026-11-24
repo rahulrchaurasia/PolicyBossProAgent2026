@@ -39,12 +39,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -66,6 +68,7 @@ import com.policyboss.policybosspro.feature.carInsurance.model.CarDetailsStep
 import com.policyboss.policybosspro.feature.carInsurance.model.CarInsuranceData
 import com.policyboss.policybosspro.feature.carInsurance.model.CarVariantItem
 import com.policyboss.policybosspro.feature.carInsurance.model.NavigationDirection
+import com.policyboss.policybosspro.feature.carInsurance.model.ModelListState
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.ui.theme.AppColors
@@ -298,11 +301,38 @@ fun CarDetailsBottomSheet(
             ) { targetStep ->
                 when (targetStep) {
                     CarDetailsStep.MAKE_MODEL -> {
-                        BrandModelGrid(
-                            items = uiState.filteredBrandModels,
-                            selectedItem = uiState.draftBrandModel,
-                            onItemSelected = { onAction(NewCarAction.OnDraftBrandModelSelected(it)) }
-                        )
+                        val modelListState = uiState.modelListState
+                        when {
+                            uiState.brandModels.isEmpty() && modelListState is ModelListState.Error -> {
+                                CatalogueStatusContent(
+                                    message = modelListState.message,
+                                    actionLabel = "Try again",
+                                    onActionClick = { onAction(NewCarAction.OnRetryModelList) }
+                                )
+                            }
+
+                            uiState.brandModels.isEmpty() && modelListState !is ModelListState.Success -> {
+                                CatalogueStatusContent(message = "Loading car brands...", isLoading = true)
+                            }
+
+                            uiState.filteredBrandModels.isEmpty() -> {
+                                CatalogueStatusContent(
+                                    message = if (uiState.sheetSearchQuery.isBlank()) {
+                                        "No car models are available right now."
+                                    } else {
+                                        "No car models match \"${uiState.sheetSearchQuery.trim()}\"."
+                                    }
+                                )
+                            }
+
+                            else -> {
+                                BrandModelGrid(
+                                    items = uiState.filteredBrandModels,
+                                    selectedItem = uiState.draftBrandModel,
+                                    onItemSelected = { onAction(NewCarAction.OnDraftBrandModelSelected(it)) }
+                                )
+                            }
+                        }
                     }
 
                     CarDetailsStep.FUEL -> {
@@ -321,6 +351,51 @@ fun CarDetailsBottomSheet(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Loading / empty / error placeholder for the live Make & Model catalogue.
+ */
+@Composable
+private fun CatalogueStatusContent(
+    message: String,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    actionLabel: String? = null,
+    onActionClick: () -> Unit = {}
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = AppColors.PrimaryBlue,
+                trackColor = AppColors.PrimaryBlue.copy(alpha = 0.14f),
+                strokeWidth = 2.5.dp
+            )
+        }
+        Text(
+            text = message,
+            fontSize = 14.sp,
+            color = AppColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+        if (actionLabel != null) {
+            TextButton(onClick = onActionClick) {
+                Text(
+                    text = actionLabel,
+                    color = AppColors.PrimaryBlue,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
