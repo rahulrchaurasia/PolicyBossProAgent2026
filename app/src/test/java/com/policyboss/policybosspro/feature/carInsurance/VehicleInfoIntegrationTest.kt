@@ -221,6 +221,21 @@ class VehicleInfoIntegrationTest {
     }
 
     @Test
+    fun `real model_list response for product 1 parses, dedupes and groups`() {
+        // Captured from GET vehicles/model_list?product_id=1 (593 records, 587 unique Model_IDs, 62 makes)
+        val raw = javaClass.classLoader!!.getResource("vehicle/model_list_product_1.json")!!.readText()
+        val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson)
+
+        val models = repo.parseModelList(testJson.parseToJsonElement(raw))
+
+        assertEquals(587, models.size)
+        assertEquals(62, models.groupByMake().size)
+        val wagonR = models.first { it.makeName == "MARUTI" && it.modelName == "WAGON R" }
+        assertEquals("138", wagonR.modelId)
+        assertEquals("MARUTI, WAGON R", wagonR.vehicleName)
+    }
+
+    @Test
     fun `models are grouped by unique make and flattened for the sheet`() {
         val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson)
         val models = repo.parseModelList(testJson.parseToJsonElement(MODEL_LIST_RESPONSE))
