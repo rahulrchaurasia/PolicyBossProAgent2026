@@ -13,6 +13,12 @@ object NetworkConstants {
     const val BASE_URL = "https://horizon.policyboss.com:5443/"
 
     /**
+     * Quote / vehicle API host. horizon.policyboss.com permanently redirects (HTTP 308)
+     * these endpoints here, so they are called directly to avoid the extra hop.
+     */
+    const val QUOTE_API_BASE_URL = "https://api.policyboss.com:5443/"
+
+    /**
      * Default authentication/authorization header token for Horizon services.
      */
     const val DEFAULT_TOKEN = "1234567890"

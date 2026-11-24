@@ -1,5 +1,6 @@
 package com.policyboss.policybosspro.feature.carInsurance.data.api
 
+import com.policyboss.policybosspro.core.network.NetworkConstants
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteRequest
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteResponse
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoRequest
@@ -20,22 +21,27 @@ interface CarInsuranceApi {
 
     /**
      * Vahan lookup by registration number.
-     * Resolves to https://horizon.policyboss.com:5443/quote/vehicle_info_user
+     * POST https://api.policyboss.com:5443/quote/vehicle_info_user
      */
-    @POST("quote/vehicle_info_user")
+    @POST(VEHICLE_INFO_URL)
     suspend fun getVehicleInfo(
         @Body request: VehicleInfoRequest
     ): Response<VehicleInfoResponseDto>
 
     /**
      * Live Make/Model catalogue.
-     * Resolves to https://horizon.policyboss.com:5443/vehicles/model_list?product_id=1
+     * GET https://api.policyboss.com:5443/vehicles/model_list?product_id=1
      *
      * Returned as raw JSON so both a bare array and an object-wrapped array are supported;
      * the repository decodes the records.
      */
-    @GET("vehicles/model_list")
+    @GET(MODEL_LIST_URL)
     suspend fun getModelList(
         @Query("product_id") productId: Int = VehicleInfoRequest.CAR_PRODUCT_ID
     ): Response<JsonElement>
+
+    companion object {
+        const val VEHICLE_INFO_URL = NetworkConstants.QUOTE_API_BASE_URL + "quote/vehicle_info_user"
+        const val MODEL_LIST_URL = NetworkConstants.QUOTE_API_BASE_URL + "vehicles/model_list"
+    }
 }

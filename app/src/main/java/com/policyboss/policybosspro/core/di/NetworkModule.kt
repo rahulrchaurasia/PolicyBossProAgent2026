@@ -39,7 +39,11 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         // Bodies carry OTPs, PII and contact uploads: log them only in debug builds.
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
+        // Mask credential values (e.g. vehicle_info_user secret_key / client_key) in logged bodies.
+        val secretPattern = Regex("(\"(?:secret_key|client_key)\"\\s*:\\s*\")([^\"]*)(\")")
+        val loggingInterceptor = HttpLoggingInterceptor { message ->
+            android.util.Log.d("OkHttp", message.replace(secretPattern, "$1****$3"))
+        }.apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BODY
             } else {

@@ -10,6 +10,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toNewCarUiS
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoRequest
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsuranceRepository
+import com.policyboss.policybosspro.feature.carInsurance.data.repository.VehicleInfoSessionProvider
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.ModelListState
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
@@ -207,11 +208,62 @@ class VehicleInfoIntegrationTest {
         assertEquals("", VehicleDateFormatter.toDisplayDate(null))
     }
 
+    private fun resource(path: String): String =
+        javaClass.classLoader!!.getResource(path)!!.readText()
+
+    @Test
+    fun `real MH01BB0197 response parses and maps to the expected form`() {
+        // Live response from api.policyboss.com quote/vehicle_info_user (personal fields redacted)
+        val dto = parse(resource("vehicle/vehicle_info_MH01BB0197.json"))
+        assertTrue(dto.isVehicleFound())
+
+        val state = dto.toDomain("MH01BB0197").toNewCarUiState(NewCarUiState())
+
+        assertEquals(CarEntryMode.WITH_CAR_NUMBER, state.entryMode)
+        assertEquals("MARUTI SUZUKI INDIA LTD, MARUTI WAGON R VXI BSIV, PETROL (998 CC)", state.vahanData)
+        assertEquals("VIJAYKUMAR PAWAR", state.customerName)
+        assertEquals("MARUTI-WAGON R-VXI+-PETROL- (998 CC)", state.formattedCarDetails)
+        assertEquals("138", state.modelId)      // matches Model_ID in vehicles/model_list
+        assertEquals("6917", state.variantId)
+        assertEquals("1", state.fuelId)
+        assertEquals("579", state.selectedRto?.value)
+        assertEquals("MH01BB0197-Mumbai-Tardeo", state.selectedRto?.label)
+        assertEquals("18-Oct-2011", state.registrationDate)
+        assertEquals("Sep", state.manufacturingMonth)
+        assertEquals("2011", state.manufacturingYear)
+        assertTrue(state.hasExistingPolicy)
+        assertEquals("09-Jun-2030", state.policyExpiryDate)
+        assertEquals("17", state.selectedInsurer?.value)
+        assertEquals("SBI GENERAL INS CO LTD", state.selectedInsurer?.label)
+        assertTrue(state.isFormValid)
+    }
+
+    @Test
+    fun `real not-found response (FASTLANE_DATA_NA_API) is treated as vehicle not found`() {
+        val dto = parse(resource("vehicle/vehicle_info_not_found.json"))
+        assertEquals("FASTLANE_DATA_NA_API", dto.errorMessage)
+        assertFalse(dto.isVehicleFound())
+    }
+
+    @Test
+    fun `session id is read from the provider at request time`() = runTest {
+        val api = CountingModelListApi(Response.success(testJson.parseToJsonElement("[]")))
+        val sessionProvider = VehicleInfoSessionProvider()
+        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson, sessionProvider)
+
+        repo.getVehicleInfo("MH01BB0197")
+        assertEquals("", api.lastVehicleRequest?.sessionId)
+
+        sessionProvider.updateSessionId("PolYkcquP-c2GlAg1xQXWq5fsD8KxF2V")
+        repo.getVehicleInfo("MH01BB0197")
+        assertEquals("PolYkcquP-c2GlAg1xQXWq5fsD8KxF2V", api.lastVehicleRequest?.sessionId)
+    }
+
     // ---------------------------------------------------------------- Model list
 
     @Test
     fun `model list parses bare and wrapped arrays and skips bad records`() {
-        val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson)
+        val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson, VehicleInfoSessionProvider())
 
         val bare = repo.parseModelList(testJson.parseToJsonElement(MODEL_LIST_RESPONSE))
         assertEquals(4, bare.size)
@@ -224,7 +276,7 @@ class VehicleInfoIntegrationTest {
     fun `real model_list response for product 1 parses, dedupes and groups`() {
         // Captured from GET vehicles/model_list?product_id=1 (593 records, 587 unique Model_IDs, 62 makes)
         val raw = javaClass.classLoader!!.getResource("vehicle/model_list_product_1.json")!!.readText()
-        val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson)
+        val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson, VehicleInfoSessionProvider())
 
         val models = repo.parseModelList(testJson.parseToJsonElement(raw))
 
@@ -237,7 +289,7 @@ class VehicleInfoIntegrationTest {
 
     @Test
     fun `models are grouped by unique make and flattened for the sheet`() {
-        val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson)
+        val repo = CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson, VehicleInfoSessionProvider())
         val models = repo.parseModelList(testJson.parseToJsonElement(MODEL_LIST_RESPONSE))
 
         val grouped = models.groupByMake()
@@ -252,7 +304,7 @@ class VehicleInfoIntegrationTest {
     @Test
     fun `repository caches model list and shares concurrent requests`() = runTest {
         val api = CountingModelListApi(Response.success(testJson.parseToJsonElement(MODEL_LIST_RESPONSE)))
-        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson)
+        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
 
         val first = async { repo.getModelList() }
         val second = async { repo.getModelList() }
@@ -266,7 +318,7 @@ class VehicleInfoIntegrationTest {
     @Test
     fun `repository does not cache model list errors`() = runTest {
         val api = CountingModelListApi(Response.error(500, "".toResponseBody()))
-        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson)
+        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
 
         assertTrue(repo.getModelList() is Resource.Error)
         assertTrue(repo.getModelList() is Resource.Error)
@@ -276,7 +328,7 @@ class VehicleInfoIntegrationTest {
     @Test
     fun `repository sends compact registration, product 1 and PB-BETA source`() = runTest {
         val api = CountingModelListApi(Response.success(testJson.parseToJsonElement("[]")))
-        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson)
+        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
 
         val result = repo.getVehicleInfo("MH-01-BB-0197")
 
@@ -297,7 +349,7 @@ class VehicleInfoIntegrationTest {
             Response.success(testJson.parseToJsonElement("[]")),
             vehicleResponse = """{"Result":"Fail","status":"Fail","Error_Message":"No record"}"""
         )
-        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson)
+        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
 
         val result = repo.getVehicleInfo("MH01BB0197")
         assertTrue(result is Resource.Error)

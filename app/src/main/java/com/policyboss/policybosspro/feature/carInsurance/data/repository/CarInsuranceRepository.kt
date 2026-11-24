@@ -12,6 +12,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toDomain
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteRequest
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteResponse
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoRequest
+import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleModelItemDto
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleInfoDomain
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleModel
@@ -33,7 +34,8 @@ import kotlin.time.Duration.Companion.milliseconds
 open class CarInsuranceRepository @Inject constructor(
     private val carInsuranceApi: CarInsuranceApi,
     private val appDataManager: AppDataManager,
-    private val json: Json
+    private val json: Json,
+    private val vehicleInfoSessionProvider: VehicleInfoSessionProvider
 ) {
 
     /** In-memory model-list cache shared by every car journey for the app session. */
@@ -75,32 +77,80 @@ open class CarInsuranceRepository @Inject constructor(
     /**
      * Vahan lookup for [registrationNumber]. Returns [Resource.Error] for HTTP/network
      * failures and for responses without a usable vehicle — never fabricated data.
+     *
+     * Request, parsed response and errors are logged (debug builds only) under
+     * Logcat tag [VehicleApiLogger.TAG], with secret/client keys masked.
      */
     open suspend fun getVehicleInfo(registrationNumber: String): Resource<VehicleInfoDomain> {
         val compactNumber = registrationNumber.compactRegistration()
         return withContext(Dispatchers.IO) {
             try {
+                val rawSsId = appDataManager.getSsId()
                 val request = VehicleInfoRequest(
                     secretKey = BuildConfig.VEHICLE_INFO_SECRET_KEY,
                     clientKey = BuildConfig.VEHICLE_INFO_CLIENT_KEY,
                     registrationNumber = compactNumber,
-                    ssId = appDataManager.getSsId().toIntOrNull() ?: 0
+                    ssId = rawSsId.toIntOrNull() ?: 0,
+                    sessionId = vehicleInfoSessionProvider.getSessionId()
                 )
+                logVehicleInfoRequest(request, rawSsId)
+
+                val startedAt = System.currentTimeMillis()
                 val response = carInsuranceApi.getVehicleInfo(request)
+                val tookMs = System.currentTimeMillis() - startedAt
                 val body = response.body()
+
                 when {
-                    !response.isSuccessful || body == null -> Resource.Error(
-                        NetworkError.ServerError(response.code()).errorMessage
-                    )
-                    !body.isVehicleFound() -> Resource.Error(vehicleNotFoundMessage(compactNumber))
-                    else -> Resource.Success(body.toDomain(compactNumber))
+                    !response.isSuccessful || body == null -> {
+                        val errorBody = runCatching { response.errorBody()?.string() }.getOrNull().orEmpty()
+                        VehicleApiLogger.e(
+                            "<-- vehicle_info_user FAILED HTTP ${response.code()} ${response.message()} (${tookMs}ms)\n" +
+                                "errorBody=${errorBody.ifBlank { "<empty>" }}"
+                        )
+                        Resource.Error(vehicleInfoHttpErrorMessage(response.code()))
+                    }
+                    !body.isVehicleFound() -> {
+                        VehicleApiLogger.e(
+                            "<-- vehicle_info_user NOT FOUND HTTP ${response.code()} (${tookMs}ms) " +
+                                "Result=${body.result} status=${body.status} Error_Message=${body.errorMessage} " +
+                                "Make_Name=${body.makeName} Model_Name=${body.modelName}"
+                        )
+                        Resource.Error(vehicleNotFoundMessage(compactNumber))
+                    }
+                    else -> {
+                        val domain = body.toDomain(compactNumber)
+                        VehicleApiLogger.d(
+                            "<-- vehicle_info_user OK HTTP ${response.code()} (${tookMs}ms)\n" +
+                                "parsed response=${json.encodeToString(VehicleInfoResponseDto.serializer(), body.copy(vehicleMatches = null))}\n" +
+                                "mapped=$domain"
+                        )
+                        Resource.Success(domain)
+                    }
                 }
             } catch (e: CancellationException) {
+                VehicleApiLogger.d("vehicle_info_user cancelled for $compactNumber")
                 throw e
             } catch (e: Exception) {
-                Resource.Error(NetworkError.fromThrowable(e).errorMessage)
+                val error = NetworkError.fromThrowable(e)
+                VehicleApiLogger.e("<-- vehicle_info_user EXCEPTION for $compactNumber: ${error.errorMessage}", e)
+                Resource.Error(error.errorMessage)
             }
         }
+    }
+
+    private fun logVehicleInfoRequest(request: VehicleInfoRequest, rawSsId: String) {
+        val masked = request.copy(
+            secretKey = VehicleApiLogger.mask(request.secretKey),
+            clientKey = VehicleApiLogger.mask(request.clientKey)
+        )
+        VehicleApiLogger.d(
+            "--> POST ${CarInsuranceApi.VEHICLE_INFO_URL}\n" +
+                "body=${json.encodeToString(VehicleInfoRequest.serializer(), masked)}\n" +
+                "ss_id source=AppDataManager.getSsId() raw=\"$rawSsId\"" +
+                (if (request.ssId == 0) " (no logged-in ss_id: sending 0)" else "") +
+                (if (request.secretKey.isBlank() || request.clientKey.isBlank()) "\nWARNING: secret_key/client_key missing in local.properties" else "") +
+                (if (request.sessionId.isBlank()) "\nWARNING: session_id is empty (VehicleInfoSessionProvider not set)" else "")
+        )
     }
 
     /**
@@ -111,24 +161,45 @@ open class CarInsuranceRepository @Inject constructor(
      * not cached, so a later call retries.
      */
     open suspend fun getModelList(forceRefresh: Boolean = false): Resource<List<VehicleModel>> {
-        if (!forceRefresh) cachedModels?.let { return Resource.Success(it) }
+        if (!forceRefresh) cachedModels?.let {
+            VehicleApiLogger.d("model_list served from memory cache (${it.size} models)")
+            return Resource.Success(it)
+        }
         return modelListMutex.withLock {
-            if (!forceRefresh) cachedModels?.let { return@withLock Resource.Success(it) }
+            if (!forceRefresh) cachedModels?.let {
+                VehicleApiLogger.d("model_list served from memory cache (${it.size} models)")
+                return@withLock Resource.Success(it)
+            }
             withContext(Dispatchers.IO) {
                 try {
+                    VehicleApiLogger.d("--> GET ${CarInsuranceApi.MODEL_LIST_URL}?product_id=${VehicleInfoRequest.CAR_PRODUCT_ID}")
+                    val startedAt = System.currentTimeMillis()
                     val response = carInsuranceApi.getModelList()
+                    val tookMs = System.currentTimeMillis() - startedAt
                     val body = response.body()
                     if (!response.isSuccessful || body == null) {
+                        val errorBody = runCatching { response.errorBody()?.string() }.getOrNull().orEmpty()
+                        VehicleApiLogger.e(
+                            "<-- model_list FAILED HTTP ${response.code()} ${response.message()} (${tookMs}ms)\n" +
+                                "errorBody=${errorBody.ifBlank { "<empty>" }}"
+                        )
                         Resource.Error(NetworkError.ServerError(response.code()).errorMessage)
                     } else {
                         val models = parseModelList(body)
+                        VehicleApiLogger.d(
+                            "<-- model_list OK HTTP ${response.code()} (${tookMs}ms) " +
+                                "models=${models.size}, makes=${models.map { it.makeName }.distinct().size}, " +
+                                "first=${models.take(3)}"
+                        )
                         if (models.isNotEmpty()) cachedModels = models
                         Resource.Success(models)
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Resource.Error(NetworkError.fromThrowable(e).errorMessage)
+                    val error = NetworkError.fromThrowable(e)
+                    VehicleApiLogger.e("<-- model_list EXCEPTION: ${error.errorMessage}", e)
+                    Resource.Error(error.errorMessage)
                 }
             }
         }
@@ -149,6 +220,11 @@ open class CarInsuranceRepository @Inject constructor(
                 .getOrNull()
                 ?.toDomain()
         }.distinctBy { it.modelId }
+    }
+
+    private fun vehicleInfoHttpErrorMessage(code: Int): String = when (code) {
+        401, 403 -> "Vehicle lookup access was denied. Please try again later or enter the car details manually."
+        else -> NetworkError.ServerError(code).errorMessage
     }
 
     private fun vehicleNotFoundMessage(registrationNumber: String): String =

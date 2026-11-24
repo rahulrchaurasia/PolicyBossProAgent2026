@@ -11,6 +11,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteResp
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoRequest
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsuranceRepository
+import com.policyboss.policybosspro.feature.carInsurance.data.repository.VehicleInfoSessionProvider
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleInfoDomain
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleModel
 import kotlinx.coroutines.flow.Flow
@@ -82,7 +83,7 @@ fun sampleKiaVehicle(registrationNumber: String = "RJ14-1234") = VehicleInfoDoma
 open class FakeCarInsuranceRepository(
     private val vehicleInfo: (String) -> Resource<VehicleInfoDomain> = { Resource.Success(sampleKiaVehicle(it)) },
     private val models: () -> Resource<List<VehicleModel>> = { Resource.Success(emptyList()) }
-) : CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson) {
+) : CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson, VehicleInfoSessionProvider()) {
     var vehicleInfoCalls = 0
         private set
     var modelListCalls = 0
