@@ -12,6 +12,7 @@ import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.ui.NewCarRoute
 import com.policyboss.policybosspro.feature.carInsurance.ui.QuoteLoadingRoute
+import com.policyboss.policybosspro.feature.carInsurance.ui.carPolicyDetail.MotorPolicyDetailRoute
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.MotorQuoteFilterRoute
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.ui.MotorQuoteResultsRoute
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
@@ -189,6 +190,11 @@ fun NavGraphBuilder.homeGraph(
                     appNavigator.navigateTo(Dest.MotorQuoteFilter) {
                         launchSingleTop = true
                     }
+                },
+                onNavigateToPolicyDetail = {
+                    appNavigator.navigateTo(Dest.MotorPolicyDetail) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -207,6 +213,35 @@ fun NavGraphBuilder.homeGraph(
                 viewModel = viewModel,
                 onNavigateBack = {
                     appNavigator.navigateBack()
+                }
+            )
+        }
+
+        composable<Dest.MotorPolicyDetail>(
+            enterTransition = { NavigationAnimations.slideInRight },
+            exitTransition = { NavigationAnimations.slideOutLeft },
+            popEnterTransition = { NavigationAnimations.slideInLeft },
+            popExitTransition = { NavigationAnimations.slideOutRight }
+        ) { backStackEntry ->
+            val ownerEntry = remember(backStackEntry) {
+                appNavigator.findBackStackEntryOrNull<Dest.NewCarInsurance>() ?: backStackEntry
+            }
+            val viewModel: NewCarViewModel = hiltViewModel(ownerEntry)
+            MotorPolicyDetailRoute(
+                viewModel = viewModel,
+                onNavigateBack = {
+                    appNavigator.navigateBack()
+                },
+                onNavigateToBuyNow = { quote ->
+                    val buyNowUrl = quote.buyNowUrl ?: "https://www.policyboss.com/motor/buy-now"
+                    appNavigator.navigateTo(
+                        Dest.CommonWebView(
+                            url = buyNowUrl,
+                            title = "Proposal & Payment"
+                        )
+                    ) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }

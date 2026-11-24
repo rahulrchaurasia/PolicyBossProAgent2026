@@ -12,8 +12,31 @@ import org.junit.Test
 class MotorQuoteFilterAdditionalCoverTest {
 
     @Test
-    fun `FilterCategory LIABILITY_COVERS has displayName Additional Cover`() {
-        assertEquals("Additional Cover", FilterCategory.LIABILITY_COVERS.displayName)
+    fun `FilterCategory ADDITIONAL_COVER has displayName Additional Cover`() {
+        assertEquals("Additional Cover", FilterCategory.ADDITIONAL_COVER.displayName)
+    }
+
+    @Test
+    fun `filter rail exposes exactly Set IDV, Add-ons, Additional Cover and Discounts`() {
+        assertEquals(
+            listOf("Set IDV", "Add-ons", "Additional Cover", "Discounts"),
+            FilterCategory.entries.map { it.displayName }
+        )
+    }
+
+    @Test
+    fun `activeFilterCount counts only the four remaining categories`() {
+        val state = QuoteFilterState(
+            selectedIdv = 100000f,
+            isIdvExplicitlyChanged = true,          // Set IDV: 1
+            selectedAddOnIds = setOf("zero_dep"),   // Add-ons: 1
+            selectedLiabilityCoverIds = emptySet(),
+            selectedUnNamedPassengerCover = "No",
+            antiTheftDevice = true,                 // Discounts: 1
+            payAsYouDrive = false,
+            voluntaryExcess = "No"
+        )
+        assertEquals(3, state.activeFilterCount)
     }
 
     @Test
@@ -34,7 +57,6 @@ class MotorQuoteFilterAdditionalCoverTest {
     fun `passenger cover No does not increment activeFilterCount, but monetary option does`() {
         val defaultState = QuoteFilterState(
             isIdvExplicitlyChanged = false,
-            selectedCoverageId = "",
             selectedAddOnIds = emptySet(),
             selectedLiabilityCoverIds = emptySet(),
             selectedUnNamedPassengerCover = "No",
@@ -90,7 +112,6 @@ class MotorQuoteFilterAdditionalCoverTest {
     fun `activeFilterCount includes liability covers, passenger cover and active accessories`() {
         val filterState = QuoteFilterState(
             isIdvExplicitlyChanged = false,
-            selectedCoverageId = "",
             selectedAddOnIds = emptySet(),
             selectedLiabilityCoverIds = setOf("owner_driver_pa", "paid_driver_liability"),
             selectedUnNamedPassengerCover = "₹ 1,00,000",
@@ -112,7 +133,6 @@ class MotorQuoteFilterAdditionalCoverTest {
             minIdv = 71414f,
             maxIdv = 234780f,
             isIdvExplicitlyChanged = false,
-            selectedCoverageId = "",
             selectedAddOnIds = emptySet(),
             selectedLiabilityCoverIds = emptySet(),
             selectedUnNamedPassengerCover = "No",

@@ -225,7 +225,7 @@ fun QuoteSummaryCard(
                         )
                     )
                 },
-                onAdditionalCoverClick = { onNavigateToFilters(FilterCategory.LIABILITY_COVERS) },
+                onAdditionalCoverClick = { onNavigateToFilters(FilterCategory.ADDITIONAL_COVER) },
                 onAdditionalCoverInfoClick = {
                     onAction(
                         NewCarAction.OnShowQuoteControlInfo(

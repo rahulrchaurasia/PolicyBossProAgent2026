@@ -1,5 +1,6 @@
 package com.policyboss.policybosspro.feature.carInsurance.data.model
 
+import com.policyboss.policybosspro.core.AppConfig
 import com.policyboss.policybosspro.feature.carInsurance.model.EarningsBreakdown
 import com.policyboss.policybosspro.feature.carInsurance.model.MotorAddOn
 import com.policyboss.policybosspro.feature.carInsurance.model.MotorQuote
@@ -33,7 +34,8 @@ data class CarQuoteResponse(
     fun toDomainQuotes(): List<MotorQuote> {
         val dtoList = quotes
         if (dtoList.isNullOrEmpty()) {
-            return MotorQuoteDefaults.generateDefaultQuotes()
+            // Sample quotes are a dev-only aid; release builds must never show fake premiums.
+            return if (AppConfig.USE_DUMMY_DATA) MotorQuoteDefaults.generateDefaultQuotes() else emptyList()
         }
         return dtoList.map { dto ->
             MotorQuote(
@@ -49,6 +51,8 @@ data class CarQuoteResponse(
                 addOns = dto.addOns?.map { it.toDomain() } ?: emptyList(),
                 benefits = dto.benefits ?: listOf("Claim settlement ratio: 91%", "10+ cashless garages"),
                 idvValue = dto.idvValue ?: 733600,
+                minIdv = dto.minIdv ?: ((dto.idvValue ?: 733600) * 0.85).toInt(),
+                maxIdv = dto.maxIdv ?: ((dto.idvValue ?: 733600) * 1.25).toInt(),
                 zextraSwitchCoverPrice = dto.zextraSwitchCoverPrice ?: 675,
                 policyDetailsUrl = dto.policyDetailsUrl ?: quoteUrl,
                 buyNowUrl = dto.buyNowUrl ?: quoteUrl
@@ -83,6 +87,10 @@ data class MotorQuoteDto(
     val benefits: List<String>? = null,
     @SerialName("idv_value")
     val idvValue: Int? = null,
+    @SerialName("min_idv")
+    val minIdv: Int? = null,
+    @SerialName("max_idv")
+    val maxIdv: Int? = null,
     @SerialName("zextra_switch_cover_price")
     val zextraSwitchCoverPrice: Int? = null,
     @SerialName("policy_details_url")

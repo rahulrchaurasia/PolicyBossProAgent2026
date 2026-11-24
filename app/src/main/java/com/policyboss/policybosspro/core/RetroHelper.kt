@@ -1,5 +1,6 @@
 package com.policyboss.policybosspro.core
 
+import com.policyboss.policybosspro.BuildConfig
 import com.policyboss.policybosspro.core.api.poilcyBossProSyncApi
 import com.policyboss.policybosspro.utils.Constant
 import kotlinx.serialization.json.Json
@@ -19,8 +20,14 @@ object RetroHelper {
     }
 
     private val okHttpClient by lazy {
+        // Contact / call-log payloads are sensitive: log bodies only in debug builds.
         val interceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
+            redactHeader("token")
         }
         OkHttpClient.Builder()
             .connectTimeout(1, TimeUnit.MINUTES)

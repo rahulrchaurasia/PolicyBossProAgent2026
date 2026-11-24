@@ -21,6 +21,7 @@ fun MotorQuoteResultsRoute(
     onNavigateToForm: () -> Unit,
     onNavigateToUrl: (url: String, title: String) -> Unit,
     onNavigateToFilters: (FilterCategory) -> Unit = {},
+    onNavigateToPolicyDetail: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -42,6 +43,10 @@ fun MotorQuoteResultsRoute(
 
             is NewCarUiEvent.NavigateBackToForm -> {
                 onNavigateToForm()
+            }
+
+            is NewCarUiEvent.NavigateToPolicyDetail -> {
+                onNavigateToPolicyDetail()
             }
 
             is NewCarUiEvent.OpenUrl -> {

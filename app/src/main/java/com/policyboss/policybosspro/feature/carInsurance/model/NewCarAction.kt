@@ -85,7 +85,6 @@ sealed interface NewCarAction {
     ) : NewCarAction
     data class OnSelectFilterCategory(val category: com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory) : NewCarAction
     data class OnUpdateDraftIdv(val idv: Float) : NewCarAction
-    data class OnSelectDraftCoverage(val coverageId: String) : NewCarAction
     data class OnToggleDraftAddOn(val addOnId: String) : NewCarAction
     data class OnToggleDraftAddOnExpanded(val addOnId: String) : NewCarAction
     data class OnToggleSelectAllAddOns(val selectAll: Boolean) : NewCarAction

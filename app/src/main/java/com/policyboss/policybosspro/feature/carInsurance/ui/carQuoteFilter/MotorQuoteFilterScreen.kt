@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.AddOnsFilterSection
-import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.CoverageFilterSection
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.DiscountsFilterSection
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.FilterBottomCtaBar
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.FilterCategoryRail
@@ -82,12 +81,6 @@ fun MotorQuoteFilterScreen(
                                 onIdvChange = { onAction(NewCarAction.OnUpdateDraftIdv(it)) }
                             )
                         }
-                        FilterCategory.COVERAGE -> {
-                            CoverageFilterSection(
-                                selectedCoverageId = uiState.draftQuoteFilter.selectedCoverageId,
-                                onCoverageSelected = { onAction(NewCarAction.OnSelectDraftCoverage(it)) }
-                            )
-                        }
                         FilterCategory.ADD_ONS -> {
                             AddOnsFilterSection(
                                 selectedAddOnIds = uiState.draftQuoteFilter.selectedAddOnIds,
@@ -97,7 +90,7 @@ fun MotorQuoteFilterScreen(
                                 onSelectZeroDepClaimLimit = { onAction(NewCarAction.OnSelectZeroDepClaimLimit(it)) }
                             )
                         }
-                        FilterCategory.LIABILITY_COVERS -> {
+                        FilterCategory.ADDITIONAL_COVER -> {
                             LiabilityCoversSection(
                                 selectedLiabilityCoverIds = uiState.draftQuoteFilter.selectedLiabilityCoverIds,
                                 selectedUnNamedPassengerCover = uiState.draftQuoteFilter.selectedUnNamedPassengerCover,

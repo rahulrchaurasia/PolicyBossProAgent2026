@@ -191,7 +191,8 @@ class MotorQuoteResultsTest {
         // Policy Details
         vm.onAction(NewCarAction.OnPolicyDetailsClick(quote))
         advanceUntilIdle()
-        assertTrue(events.any { it is NewCarUiEvent.OpenUrl && it.url == quote.policyDetailsUrl })
+        assertTrue(events.contains(NewCarUiEvent.NavigateToPolicyDetail))
+        assertEquals(quote, vm.uiState.value.selectedPolicyDetailQuote)
 
         // Share Quote
         vm.onAction(NewCarAction.OnShareQuoteClick(quote))

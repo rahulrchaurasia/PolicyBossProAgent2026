@@ -104,6 +104,9 @@ sealed class Dest {
 
     @Serializable
     data object Leads : Dest()
+
+    @Serializable
+    data class LeadDetails(val leadId: String) : Dest()
     @Serializable
     data object Dashboard : Dest()
 
@@ -152,6 +155,9 @@ sealed class Dest {
 
     @Serializable
     data object MotorQuoteFilter : Dest()
+
+    @Serializable
+    data object MotorPolicyDetail : Dest()
 
     //endregion
 

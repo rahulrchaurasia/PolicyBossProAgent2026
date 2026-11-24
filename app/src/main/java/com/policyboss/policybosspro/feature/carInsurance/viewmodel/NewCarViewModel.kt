@@ -2,6 +2,7 @@ package com.policyboss.policybosspro.feature.carInsurance.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.policyboss.policybosspro.core.AppConfig
 import com.policyboss.policybosspro.core.Resource
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteRequest
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsuranceRepository
@@ -759,9 +760,8 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnPolicyDetailsClick -> {
-                val targetUrl = action.quote.policyDetailsUrl
-                    ?: "https://www.policyboss.com/policy-details"
-                sendFormEvent(NewCarUiEvent.OpenUrl(targetUrl))
+                _uiState.update { it.copy(selectedPolicyDetailQuote = action.quote) }
+                sendFormEvent(NewCarUiEvent.NavigateToPolicyDetail)
             }
 
             is NewCarAction.OnEditVehicleClick -> {
@@ -787,16 +787,6 @@ class NewCarViewModel @Inject constructor(
                         draftQuoteFilter = it.draftQuoteFilter.copy(
                             selectedIdv = action.idv,
                             isIdvExplicitlyChanged = (action.idv != it.draftQuoteFilter.defaultIdv)
-                        )
-                    )
-                }
-            }
-
-            is NewCarAction.OnSelectDraftCoverage -> {
-                _uiState.update {
-                    it.copy(
-                        draftQuoteFilter = it.draftQuoteFilter.copy(
-                            selectedCoverageId = action.coverageId
                         )
                     )
                 }
@@ -857,7 +847,6 @@ class NewCarViewModel @Inject constructor(
                             minIdv = current.draftQuoteFilter.minIdv,
                             maxIdv = current.draftQuoteFilter.maxIdv,
                             isIdvExplicitlyChanged = false,
-                            selectedCoverageId = "",
                             selectedAddOnIds = emptySet(),
                             selectedLiabilityCoverIds = emptySet(),
                             selectedUnNamedPassengerCover = "No",
@@ -1090,6 +1079,16 @@ class NewCarViewModel @Inject constructor(
                         val quoteId = result.data.quoteId ?: "QUOTE_DEFAULT"
                         val quoteUrl = result.data.quoteUrl
                         val domainQuotes = result.data.toDomainQuotes()
+                        if (domainQuotes.isEmpty()) {
+                            val message = "No quotes are available for these details. Please review and try again."
+                            _uiState.update {
+                                it.copy(
+                                    quoteState = QuoteFetchState.Error(message),
+                                    errorMessage = message
+                                )
+                            }
+                            return@launch
+                        }
                         val quotesCount = result.data.quotesCount?.takeIf { it > 0 } ?: domainQuotes.size
 
                         _uiState.update {
@@ -1164,13 +1163,21 @@ class NewCarViewModel @Inject constructor(
     }
 
     fun ensureQuotesLoaded() {
-        if (_uiState.value.quotes.isEmpty()) {
-            _uiState.update {
-                it.copy(
-                    quotes = com.policyboss.policybosspro.feature.carInsurance.model.MotorQuoteDefaults.generateDefaultQuotes(),
-                    expandedAddOnQuoteIds = setOf("ACKO-01")
-                )
-            }
+        if (_uiState.value.quotes.isNotEmpty()) return
+
+        if (!AppConfig.USE_DUMMY_DATA) {
+            // No real quotes in memory (e.g. restored after process death): never fabricate
+            // premiums in release; send the user back to the form to fetch fresh quotes.
+            sendFormEvent(NewCarUiEvent.ShowSnackbar("Your quotes have expired. Please fetch them again."))
+            sendFormEvent(NewCarUiEvent.NavigateBackToForm)
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                quotes = com.policyboss.policybosspro.feature.carInsurance.model.MotorQuoteDefaults.generateDefaultQuotes(),
+                expandedAddOnQuoteIds = setOf("ACKO-01")
+            )
         }
     }
 

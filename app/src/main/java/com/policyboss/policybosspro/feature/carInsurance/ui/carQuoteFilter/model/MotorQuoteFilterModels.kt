@@ -4,18 +4,9 @@ import androidx.compose.runtime.Immutable
 
 enum class FilterCategory(val displayName: String) {
     SET_IDV("Set IDV"),
-    COVERAGE("Coverage"),
     ADD_ONS("Add-ons"),
-    LIABILITY_COVERS("Additional Cover"),
+    ADDITIONAL_COVER("Additional Cover"),
     DISCOUNTS("Discounts")
-}
-
-enum class CoverageBadgeType {
-    RECOMMENDED,
-    SMART_VALUE,
-    ALL_ROUND,
-    BASE,
-    PA_EXCLUDED
 }
 
 enum class ZeroDepClaimLimit(val displayName: String, val shortLabel: String) {
@@ -23,16 +14,6 @@ enum class ZeroDepClaimLimit(val displayName: String, val shortLabel: String) {
     TWO_CLAIMS("2 Claim(s)", "2"),
     UNLIMITED_CLAIMS("Unlimited Claim(s)", "Unlimited")
 }
-
-@Immutable
-data class CoverageOption(
-    val id: String,
-    val badgeText: String,
-    val badgeType: CoverageBadgeType,
-    val title: String,
-    val minPrice: Int,
-    val maxPrice: Int
-)
 
 @Immutable
 data class AddOnFilterItem(
@@ -64,9 +45,6 @@ data class QuoteFilterState(
     val minIdv: Float = 71414f,
     val maxIdv: Float = 234780f,
     val isIdvExplicitlyChanged: Boolean = false,
-
-    // Coverage
-    val selectedCoverageId: String = "comprehensive_cpa_zero_dep_rsa",
 
     // Add-ons
     val selectedAddOnIds: Set<String> = setOf("zero_dep"),
@@ -124,7 +102,6 @@ data class QuoteFilterState(
         get() {
             var count = 0
             if (isIdvActive) count++
-            if (selectedCoverageId.isNotBlank()) count++
             count += selectedAddOnIds.size
             count += selectedLiabilityCoverIds.size
             if (!selectedUnNamedPassengerCover.isNullOrBlank() && selectedUnNamedPassengerCover != "No") count++
@@ -138,68 +115,6 @@ data class QuoteFilterState(
 }
 
 object MotorQuoteFilterData {
-    val coverageCallouts = listOf(
-        InfoCalloutItem(
-            title = "Compulsory Personal Accident (CPA):",
-            description = "Financial protection for the owner-driver against accidental death or permanent disability"
-        ),
-        InfoCalloutItem(
-            title = "Zero Depreciation Cover:",
-            description = "Covers full repair cost without deducting standard vehicle depreciation during claims."
-        ),
-        InfoCalloutItem(
-            title = "Roadside Assistance (RSA):",
-            description = "24x7 emergency assistance for towing, flat tires, battery jumpstart, and minor breakdowns."
-        ),
-        InfoCalloutItem(
-            title = "Consumables Cover:",
-            description = "Reimburses expenses incurred on lubricants, engine oil, screws, and other consumable parts."
-        )
-    )
-
-    val coverageOptions = listOf(
-        CoverageOption(
-            id = "comprehensive_cpa_zero_dep_rsa",
-            badgeText = "Recommended",
-            badgeType = CoverageBadgeType.RECOMMENDED,
-            title = "Comprehensive + CPA + Zero Depreciation + Roadside Assistance",
-            minPrice = 4200,
-            maxPrice = 9000
-        ),
-        CoverageOption(
-            id = "comprehensive_cpa_zero_dep",
-            badgeText = "Smart Value",
-            badgeType = CoverageBadgeType.SMART_VALUE,
-            title = "Comprehensive + CPA + Zero Depreciation",
-            minPrice = 4200,
-            maxPrice = 6500
-        ),
-        CoverageOption(
-            id = "comprehensive_cpa_all_addons",
-            badgeText = "All-round Protection",
-            badgeType = CoverageBadgeType.ALL_ROUND,
-            title = "Comprehensive + CPA + All Add-ons",
-            minPrice = 6500,
-            maxPrice = 10500
-        ),
-        CoverageOption(
-            id = "comprehensive_cpa",
-            badgeText = "Base",
-            badgeType = CoverageBadgeType.BASE,
-            title = "Comprehensive + CPA",
-            minPrice = 2500,
-            maxPrice = 4700
-        ),
-        CoverageOption(
-            id = "comprehensive_only",
-            badgeText = "PA excluded",
-            badgeType = CoverageBadgeType.PA_EXCLUDED,
-            title = "Comprehensive Only",
-            minPrice = 2500,
-            maxPrice = 4700
-        )
-    )
-
     val addOnItems = listOf(
         AddOnFilterItem(
             id = "zero_dep",

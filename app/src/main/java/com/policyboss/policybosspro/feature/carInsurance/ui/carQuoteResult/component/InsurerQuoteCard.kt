@@ -45,6 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -450,58 +451,73 @@ fun InsurerQuoteCard(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Car Value (IDV) Container
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AppColors.Slate50)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            // Car Value (IDV) & Zextra Switch Cover Block (Stacked Row-Wise)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                // Tier 1 — Highlighted Car Value (IDV) Box (Full Width)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFEFF6FF))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Car Value (IDV)",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = AppColors.Slate500
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "₹${quote.idvFormatted}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppColors.Slate900
-                        )
-                    }
-
-                    if (isZextraBundleEnabled) {
-                        VerticalDivider(
-                            modifier = Modifier.height(26.dp),
-                            color = AppColors.Slate200,
-                            thickness = 1.dp
-                        )
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Row 1: Primary IDV Line
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Zextra Switch Cover",
-                                fontSize = 11.sp,
+                                text = "Car Value (IDV) : ",
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = AppColors.Slate500
+                                color = AppColors.TextSecondary
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "₹${quote.zextraSwitchCoverPrice}",
-                                fontSize = 13.sp,
+                                text = "₹${MotorQuote.formatIndianCurrency(quote.idvValue)}",
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AppColors.Slate900
+                                color = AppColors.TextPrimary
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Row 2: IDV Min-Max Range Line
+                        val minIdvStr = MotorQuote.formatIndianCurrency(quote.minIdv)
+                        val maxIdvStr = MotorQuote.formatIndianCurrency(quote.maxIdv)
+                        Text(
+                            text = "IDV From : ₹$minIdvStr  To : ₹$maxIdvStr",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppColors.TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Tier 2 — Zextra Switch Cover Row (Full Width)
+                if (isZextraBundleEnabled) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Zextra Switch Cover :",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppColors.TextSecondary
+                        )
+                        Text(
+                            text = "₹${MotorQuote.formatIndianCurrency(quote.zextraSwitchCoverPrice)}",
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.TextPrimary
+                        )
                     }
                 }
             }

@@ -1,6 +1,7 @@
 package com.policyboss.policybosspro.core.di
 
 import android.content.Context
+import com.policyboss.policybosspro.BuildConfig
 import com.policyboss.policybosspro.core.network.ConnectivityObserver
 import com.policyboss.policybosspro.core.network.NetworkConnectivityObserver
 import com.policyboss.policybosspro.core.network.NetworkConstants
@@ -37,8 +38,14 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
+        // Bodies carry OTPs, PII and contact uploads: log them only in debug builds.
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
+            redactHeader("token")
         }
         return OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)

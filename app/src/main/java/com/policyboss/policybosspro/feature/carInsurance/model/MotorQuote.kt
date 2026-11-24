@@ -18,6 +18,8 @@ data class MotorQuote(
     val addOns: List<MotorAddOn> = emptyList(),
     val benefits: List<String> = emptyList(),
     val idvValue: Int = 733600,
+    val minIdv: Int = 71414,
+    val maxIdv: Int = 234780,
     val zextraSwitchCoverPrice: Int = 675,
     val policyDetailsUrl: String? = null,
     val buyNowUrl: String? = null

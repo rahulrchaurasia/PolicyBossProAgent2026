@@ -4,6 +4,7 @@ sealed interface NewCarUiEvent {
     data object NavigateBack : NewCarUiEvent
     data object NavigateBackToForm : NewCarUiEvent
     data object NavigateToQuoteLoading : NewCarUiEvent
+    data object NavigateToPolicyDetail : NewCarUiEvent
     data class ShowSnackbar(val message: String) : NewCarUiEvent
     data class OpenUrl(val url: String) : NewCarUiEvent
     data class ShareText(val text: String) : NewCarUiEvent

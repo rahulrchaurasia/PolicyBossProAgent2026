@@ -1,6 +1,7 @@
 package com.policyboss.policybosspro.feature.carInsurance.model
 
 import androidx.compose.runtime.Immutable
+import com.policyboss.policybosspro.core.AppConfig
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.QuoteFilterState
 import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
@@ -142,7 +143,8 @@ data class NewCarUiState(
     val crnNumber: String = "12678184",
     val showVariantSheet: Boolean = false,
     val infoDialogTitle: String? = null,
-    val infoDialogMessage: String? = null
+    val infoDialogMessage: String? = null,
+    val selectedPolicyDetailQuote: MotorQuote? = null
 ) {
     val isLoading: Boolean
         get() = quoteState is QuoteFetchState.Loading
@@ -302,7 +304,11 @@ data class NewCarUiState(
 
     val sortedQuotes: List<MotorQuote>
         get() {
-            val effectiveList = if (quotes.isEmpty()) MotorQuoteDefaults.generateDefaultQuotes() else quotes
+            val effectiveList = if (quotes.isEmpty() && AppConfig.USE_DUMMY_DATA) {
+                MotorQuoteDefaults.generateDefaultQuotes()
+            } else {
+                quotes
+            }
             return when (selectedSortOption) {
                 MotorQuoteSortOption.RECOMMENDED -> effectiveList.sortedWith(
                     compareByDescending<MotorQuote> { it.isRecommended }
