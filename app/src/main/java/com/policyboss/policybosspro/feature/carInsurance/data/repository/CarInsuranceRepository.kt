@@ -1,6 +1,5 @@
 package com.policyboss.policybosspro.feature.carInsurance.data.repository
 
-import com.policyboss.policybosspro.BuildConfig
 import com.policyboss.policybosspro.core.AppConfig
 import com.policyboss.policybosspro.core.Resource
 import com.policyboss.policybosspro.core.datastore.AppDataManager
@@ -78,8 +77,8 @@ open class CarInsuranceRepository @Inject constructor(
      * Vahan lookup for [registrationNumber]. Returns [Resource.Error] for HTTP/network
      * failures and for responses without a usable vehicle — never fabricated data.
      *
-     * Request, parsed response and errors are logged (debug builds only) under
-     * Logcat tag [VehicleApiLogger.TAG], with secret/client keys masked.
+     * Request (full body), parsed response and errors are logged (debug builds only)
+     * under Logcat tag [VehicleApiLogger.TAG].
      */
     open suspend fun getVehicleInfo(registrationNumber: String): Resource<VehicleInfoDomain> {
         val compactNumber = registrationNumber.compactRegistration()
@@ -87,11 +86,10 @@ open class CarInsuranceRepository @Inject constructor(
             try {
                 val rawSsId = appDataManager.getSsId()
                 val request = VehicleInfoRequest(
-                    secretKey = BuildConfig.VEHICLE_INFO_SECRET_KEY,
-                    clientKey = BuildConfig.VEHICLE_INFO_CLIENT_KEY,
                     registrationNumber = compactNumber,
                     ssId = rawSsId.toIntOrNull() ?: 0,
                     sessionId = vehicleInfoSessionProvider.getSessionId()
+                        .ifBlank { VehicleInfoRequest.SESSION_ID }
                 )
                 logVehicleInfoRequest(request, rawSsId)
 
@@ -139,17 +137,12 @@ open class CarInsuranceRepository @Inject constructor(
     }
 
     private fun logVehicleInfoRequest(request: VehicleInfoRequest, rawSsId: String) {
-        val masked = request.copy(
-            secretKey = VehicleApiLogger.mask(request.secretKey),
-            clientKey = VehicleApiLogger.mask(request.clientKey)
-        )
         VehicleApiLogger.d(
             "--> POST ${CarInsuranceApi.VEHICLE_INFO_URL}\n" +
-                "body=${json.encodeToString(VehicleInfoRequest.serializer(), masked)}\n" +
+                "body=${json.encodeToString(VehicleInfoRequest.serializer(), request)}\n" +
                 "ss_id source=AppDataManager.getSsId() raw=\"$rawSsId\"" +
                 (if (request.ssId == 0) " (no logged-in ss_id: sending 0)" else "") +
-                (if (request.secretKey.isBlank() || request.clientKey.isBlank()) "\nWARNING: secret_key/client_key missing in local.properties" else "") +
-                (if (request.sessionId.isBlank()) "\nWARNING: session_id is empty (VehicleInfoSessionProvider not set)" else "")
+                (if (request.sessionId == VehicleInfoRequest.SESSION_ID) "\nsession_id=constant VehicleInfoRequest.SESSION_ID" else "\nsession_id=from VehicleInfoSessionProvider")
         )
     }
 

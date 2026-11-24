@@ -1,13 +1,4 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import java.util.Properties
-
-// Secrets that must stay out of source control live in the git-ignored local.properties.
-val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
-}
-fun localProperty(key: String): String =
-    localProperties.getProperty(key, "").replace("\\", "\\\\").replace("\"", "\\\"")
 
 
 plugins {
@@ -33,10 +24,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Vehicle info (vahan) lookup credentials. Read from the git-ignored local.properties
-        // so they never live in source control; blank when not configured.
-        buildConfigField("String", "VEHICLE_INFO_SECRET_KEY", "\"${localProperty("vehicleInfo.secretKey")}\"")
-        buildConfigField("String", "VEHICLE_INFO_CLIENT_KEY", "\"${localProperty("vehicleInfo.clientKey")}\"")
     }
 
     buildTypes {

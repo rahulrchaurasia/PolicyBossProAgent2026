@@ -246,17 +246,45 @@ class VehicleInfoIntegrationTest {
     }
 
     @Test
-    fun `session id is read from the provider at request time`() = runTest {
+    fun `request body sent to vehicle_info_user matches the agreed contract exactly`() = runTest {
+        val api = CountingModelListApi(Response.success(testJson.parseToJsonElement("[]")))
+        val appDataManager = testAppDataManager().apply { saveUserSsId("150253") }
+        val repo = CarInsuranceRepository(api, appDataManager, testJson, VehicleInfoSessionProvider())
+
+        repo.getVehicleInfo("MH-01-BB-0197")
+
+        val sent = testJson.encodeToJsonElement(VehicleInfoRequest.serializer(), api.lastVehicleRequest!!)
+        val expected = testJson.parseToJsonElement(
+            """
+            {
+              "secret_key": "SECRET-HZ07QRWY-JIBT-XRMQ-ZP95-J0RWP3DYRACW",
+              "client_key": "CLIENT-CNTP6NYE-CU9N-DUZW-CSPI-SH1IS4DOVHB9",
+              "RegistrationNumber": "MH01BB0197",
+              "product_id": 1,
+              "ss_id": 150253,
+              "source": "PB-BETA",
+              "session_id": "PolYkcquP-c2GlAg1xQXWq5fsD8KxF2V",
+              "g-recaptcha-response": ""
+            }
+            """.trimIndent()
+        )
+        assertEquals(expected, sent)
+    }
+
+    @Test
+    fun `request sends constant keys and session id unless the provider overrides it`() = runTest {
         val api = CountingModelListApi(Response.success(testJson.parseToJsonElement("[]")))
         val sessionProvider = VehicleInfoSessionProvider()
         val repo = CarInsuranceRepository(api, testAppDataManager(), testJson, sessionProvider)
 
         repo.getVehicleInfo("MH01BB0197")
-        assertEquals("", api.lastVehicleRequest?.sessionId)
+        assertEquals(VehicleInfoRequest.SECRET_KEY, api.lastVehicleRequest?.secretKey)
+        assertEquals(VehicleInfoRequest.CLIENT_KEY, api.lastVehicleRequest?.clientKey)
+        assertEquals(VehicleInfoRequest.SESSION_ID, api.lastVehicleRequest?.sessionId)
 
-        sessionProvider.updateSessionId("PolYkcquP-c2GlAg1xQXWq5fsD8KxF2V")
+        sessionProvider.updateSessionId("RUNTIME-SESSION")
         repo.getVehicleInfo("MH01BB0197")
-        assertEquals("PolYkcquP-c2GlAg1xQXWq5fsD8KxF2V", api.lastVehicleRequest?.sessionId)
+        assertEquals("RUNTIME-SESSION", api.lastVehicleRequest?.sessionId)
     }
 
     // ---------------------------------------------------------------- Model list

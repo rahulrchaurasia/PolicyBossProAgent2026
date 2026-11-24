@@ -6,15 +6,14 @@ import kotlinx.serialization.Serializable
 /**
  * Request body for `POST quote/vehicle_info_user` (registration number → vahan lookup).
  *
- * Credentials are supplied by the repository from BuildConfig (local.properties);
- * never hardcode them here.
+ * secret_key, client_key and session_id are fixed constants sent as-is in the body.
  */
 @Serializable
 data class VehicleInfoRequest(
     @SerialName("secret_key")
-    val secretKey: String,
+    val secretKey: String = SECRET_KEY,
     @SerialName("client_key")
-    val clientKey: String,
+    val clientKey: String = CLIENT_KEY,
     @SerialName("RegistrationNumber")
     val registrationNumber: String,
     @SerialName("product_id")
@@ -24,12 +23,15 @@ data class VehicleInfoRequest(
     @SerialName("source")
     val source: String = SOURCE,
     @SerialName("session_id")
-    val sessionId: String = "",
+    val sessionId: String = SESSION_ID,
     @SerialName("g-recaptcha-response")
     val recaptchaResponse: String = ""
 ) {
     companion object {
         const val CAR_PRODUCT_ID = 1
         const val SOURCE = "PB-BETA"
+        const val SECRET_KEY = "SECRET-HZ07QRWY-JIBT-XRMQ-ZP95-J0RWP3DYRACW"
+        const val CLIENT_KEY = "CLIENT-CNTP6NYE-CU9N-DUZW-CSPI-SH1IS4DOVHB9"
+        const val SESSION_ID = "5UsBoitooSMhp9Hw1YoPolWd5yj3jFMt"
     }
 }
