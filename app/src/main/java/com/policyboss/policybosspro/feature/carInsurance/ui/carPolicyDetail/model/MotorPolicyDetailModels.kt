@@ -9,10 +9,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PolicyVehicleInfo(
     val carModel: String,
-    val idv: Int,
+    /** Null for TP-only: a third-party policy has no car value. */
+    val idv: Int?,
     val crn: String,
     val regDate: String,
-    val newNcb: String,
+    /** Null for TP-only: NCB applies to own damage only. */
+    val newNcb: String?,
     val planName: String
 )
 
@@ -48,10 +50,12 @@ data class PolicyBreakupDetails(
     val insurerName: String,
     val insurerLogoType: String,
     val vehicleInfo: PolicyVehicleInfo,
-    val baseCoverGroup: PremiumBreakupGroup,
+    /** Own Damage premium with its discounts and NCB; null for TP-only. */
+    val baseCoverGroup: PremiumBreakupGroup?,
     val thirdPartyGroup: PremiumBreakupGroup,
     val bundleGroup: PremiumBreakupGroup,
-    val addonGroup: PremiumBreakupGroup,
+    /** Add-ons; null for TP-only. */
+    val addonGroup: PremiumBreakupGroup?,
     val taxesGroup: PremiumBreakupGroup,
     val finalPremium: Int
 ) {
@@ -85,13 +89,15 @@ data class PolicyBreakupDetails(
             val crn = uiState?.crnNumber?.ifBlank { null } ?: "12682505"
             val regDate = uiState?.registrationDate?.ifBlank { null } ?: "18 Oct, 2011"
             val planName = if (q.isRecommended) "GOLD" else "Basic"
+            // Third-party-only: no own damage, so no IDV, NCB, OD discounts or add-ons
+            val isTpOnly = uiState?.isTpOnlyFilter == true
 
             val vehicleInfo = PolicyVehicleInfo(
                 carModel = carModelText,
-                idv = q.idvValue,
+                idv = if (isTpOnly) null else q.idvValue,
                 crn = crn,
                 regDate = regDate,
-                newNcb = "20%",
+                newNcb = if (isTpOnly) null else "20%",
                 planName = planName
             )
 
@@ -102,7 +108,7 @@ data class PolicyBreakupDetails(
             val ncbDiscount = 75
             val netOd = (basicOd - odDiscount - garageBenefitDiscount - ncbDiscount).coerceAtLeast(0)
 
-            val baseCoverGroup = PremiumBreakupGroup(
+            val baseCoverGroup = if (isTpOnly) null else PremiumBreakupGroup(
                 id = "base_cover",
                 categoryCaption = "Base Cover",
                 title = "Own Damage Premium (A)",
@@ -120,7 +126,8 @@ data class PolicyBreakupDetails(
             val thirdPartyGroup = PremiumBreakupGroup(
                 id = "third_party",
                 categoryCaption = "Third Party Cover",
-                title = "Third Party Premium (B)",
+                // Groups are lettered in order, so Third Party is (A) when there is no Own Damage group
+                title = if (isTpOnly) "Third Party Premium (A)" else "Third Party Premium (B)",
                 totalAmount = tpAmount,
                 items = listOf(
                     PremiumBreakupItem("Basic 3rd Party Premium", tpAmount)
@@ -151,7 +158,7 @@ data class PolicyBreakupDetails(
                 )
             }
             val addonTotal = if (addOnItems.isNotEmpty()) addOnItems.sumOf { it.amount } else 701
-            val addonGroup = PremiumBreakupGroup(
+            val addonGroup = if (isTpOnly) null else PremiumBreakupGroup(
                 id = "addons",
                 categoryCaption = "Addons",
                 title = "Addon Details",
@@ -162,7 +169,7 @@ data class PolicyBreakupDetails(
             // Net Premium = 298 + 2094 + 400 + 701 = 3493
             // GST @ 18% = ~629
             // Final = 4122
-            val netPremium = netOd + tpAmount + bundleAmount + addonTotal
+            val netPremium = (baseCoverGroup?.totalAmount ?: 0) + tpAmount + bundleAmount + (addonGroup?.totalAmount ?: 0)
             val gstAmount = (netPremium * 0.18).toInt().coerceAtLeast(629)
             val calculatedFinal = netPremium + gstAmount
 

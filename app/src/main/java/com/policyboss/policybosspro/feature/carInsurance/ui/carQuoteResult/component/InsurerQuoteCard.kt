@@ -1,5 +1,6 @@
 package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component
 
+import coil3.compose.AsyncImage
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -101,27 +102,46 @@ fun InsurerQuoteCard(
                         .padding(2.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    val logoRes = when (quote.insurerLogoType.lowercase()) {
-                        "acko" -> R.drawable.ic_acko_logo
-                        "tata" -> R.drawable.img_tata
-                        else -> R.drawable.ic_acko_logo
+                    if (!quote.insurerLogoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = quote.insurerLogoUrl,
+                            contentDescription = quote.insurerName,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(width = 38.dp, height = 22.dp)
+                        )
+                    } else {
+                        val logoRes = when (quote.insurerLogoType.lowercase()) {
+                            "acko" -> R.drawable.ic_acko_logo
+                            "tata" -> R.drawable.img_tata
+                            else -> R.drawable.ic_acko_logo
+                        }
+                        Image(
+                            painter = painterResource(logoRes),
+                            contentDescription = quote.insurerName,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(width = 38.dp, height = 22.dp)
+                        )
                     }
-                    Image(
-                        painter = painterResource(logoRes),
-                        contentDescription = quote.insurerName,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(width = 38.dp, height = 22.dp)
-                    )
                 }
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                Text(
-                    text = quote.insurerName,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColors.Slate900
-                )
+                Column {
+                    Text(
+                        text = quote.insurerName,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.Slate900
+                    )
+                    if (!quote.planName.isNullOrBlank()) {
+                        Text(
+                            text = "Plan: ${quote.planName}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppColors.Slate500
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -197,7 +217,7 @@ fun InsurerQuoteCard(
                         )
                     }
 
-                    Column(horizontalAlignment = Alignment.End) {
+                    if (quote.totalEarnings > 0) Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = "Brokerage",
                             fontSize = 11.sp,
@@ -229,8 +249,8 @@ fun InsurerQuoteCard(
                 }
             }
 
-            // Total Earnings Breakdown (Shown when Zextra is ON)
-            if (isZextraBundleEnabled) {
+            // Total Earnings Breakdown (Shown when Zextra is ON and the quote carries earnings)
+            if (isZextraBundleEnabled && quote.totalEarnings > 0) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Box(
                     modifier = Modifier
@@ -456,8 +476,8 @@ fun InsurerQuoteCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Tier 1 — Highlighted Car Value (IDV) Box (Full Width)
-                Box(
+                // Tier 1 — Highlighted Car Value (IDV) Box (Full Width); hidden when there is no IDV (TP-only)
+                if (quote.idvValue > 0) Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
@@ -498,7 +518,7 @@ fun InsurerQuoteCard(
                 }
 
                 // Tier 2 — Zextra Switch Cover Row (Full Width)
-                if (isZextraBundleEnabled) {
+                if (isZextraBundleEnabled && quote.zextraSwitchCoverPrice > 0) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

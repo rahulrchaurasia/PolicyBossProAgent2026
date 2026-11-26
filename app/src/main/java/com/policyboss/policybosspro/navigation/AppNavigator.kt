@@ -78,6 +78,34 @@ class AppNavigator( val navController: NavController) {
         }
     }
 
+    /**
+     * Atomically pops all intermediate screens directly back to Home (Dest.Home)
+     * in a single back-stack transaction, eliminating intermediate screen flash.
+     */
+    fun popBackToHome() {
+        val poppedDirectly = navController.popBackStack<Dest.Home>(inclusive = false)
+        if (!poppedDirectly) {
+            navController.navigate(Dest.Home) {
+                popUpTo(navController.graph.startDestinationId) {
+                    inclusive = false
+                }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    /**
+     * Atomically pops back to the NewCarInsurance form screen if present on the back stack.
+     */
+    fun popBackToNewCar() {
+        val poppedDirectly = navController.popBackStack<Dest.NewCarInsurance>(inclusive = false)
+        if (!poppedDirectly) {
+            navController.navigate(Dest.NewCarInsurance()) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     // ─────────────────────────────────────
     // 4. AUTH & MAIN FLOWS
     // ─────────────────────────────────────

@@ -125,6 +125,9 @@ fun NavGraphBuilder.homeGraph(
                 onNavigateBack = {
                     appNavigator.navigateBack()
                 },
+                onCloseToHome = {
+                    appNavigator.popBackToHome()
+                },
                 onNavigateToQuoteLoading = {
                     appNavigator.navigateTo(Dest.CarQuoteLoading) {
                         launchSingleTop = true
@@ -146,7 +149,10 @@ fun NavGraphBuilder.homeGraph(
             QuoteLoadingRoute(
                 viewModel = viewModel,
                 onCloseLoading = {
-                    appNavigator.navigateBack()
+                    appNavigator.popBackToHome()
+                },
+                onBackToForm = {
+                    appNavigator.popBackToNewCar()
                 },
                 onNavigateToQuotes = { _, _ ->
                     appNavigator.navigateTo(Dest.MotorQuoteResults) {

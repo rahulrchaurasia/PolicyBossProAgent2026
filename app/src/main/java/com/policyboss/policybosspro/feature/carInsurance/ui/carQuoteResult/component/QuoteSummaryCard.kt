@@ -179,6 +179,11 @@ fun QuoteSummaryCard(
             }
 
             val additionalCoverSummary = run {
+                // TP hides the accessories fields, so only liability + passenger covers count
+                if (uiState.isTpOnlyFilter) {
+                    val tpCount = uiState.appliedQuoteFilter.additionalCoverFilterCount
+                    return@run if (tpCount > 0) "$tpCount Selected" else "Select"
+                }
                 var count = uiState.appliedQuoteFilter.selectedLiabilityCoverIds.size
                 val unNamed = uiState.appliedQuoteFilter.selectedUnNamedPassengerCover
                 if (!unNamed.isNullOrBlank() && unNamed != "No") {
@@ -234,6 +239,8 @@ fun QuoteSummaryCard(
                         )
                     )
                 },
+                showCarValue = !uiState.isTpOnlyFilter,
+                showAddons = !uiState.isTpOnlyFilter,
                 onSelectCpaOption = { onAction(NewCarAction.OnSelectCpaCoverageOption(it)) },
                 onCpaOptionInfoClick = { option ->
                     val (title, message) = when (option) {

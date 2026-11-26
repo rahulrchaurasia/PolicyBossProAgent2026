@@ -7,10 +7,14 @@ package com.policyboss.policybosspro.feature.carInsurance.model
  * - [OD_ONLY]: Standalone Own Damage coverage.
  * - [COMPREHENSIVE]: Full Comprehensive package policy.
  */
-enum class PolicyType(val displayName: String) {
-    TP_ONLY("TP Only"),
-    OD_ONLY("OD Only"),
-    COMPREHENSIVE("Comprehensive");
+enum class PolicyType(
+    val displayName: String,
+    /** `vehicle_insurance_subtype` sent to `quote/premium_initiate`. */
+    val apiSubtype: String
+) {
+    TP_ONLY("TP Only", "0CH_1TP"),
+    OD_ONLY("OD Only", "1OD_0TP"),
+    COMPREHENSIVE("Comprehensive", "1CH_0TP");
 
     companion object {
         fun fromString(value: String?): PolicyType {

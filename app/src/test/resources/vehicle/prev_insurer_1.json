@@ -1,0 +1,94 @@
+{
+    "0": {
+        "insurer_id": 45,
+        "insurer_name": "Acko"
+    },
+    "1": {
+        "insurer_id": 1,
+        "insurer_name": "Bajaj Allianz"
+    },
+    "2": {
+        "insurer_id": 3,
+        "insurer_name": "Cholamandalam MS"
+    },
+    "3": {
+        "insurer_id": 4,
+        "insurer_name": "Future Generali"
+    },
+    "4": {
+        "insurer_id": 44,
+        "insurer_name": "GoDigit"
+    },
+    "5": {
+        "insurer_id": 5,
+        "insurer_name": "HDFC ERGO"
+    },
+    "6": {
+        "insurer_id": 6,
+        "insurer_name": "ICICI Lombard"
+    },
+    "7": {
+        "insurer_id": 7,
+        "insurer_name": "IFFCO Tokio"
+    },
+    "8": {
+        "insurer_id": 9,
+        "insurer_name": "IndusInd General"
+    },
+    "9": {
+        "insurer_id": 30,
+        "insurer_name": "Kotak Mahindra"
+    },
+    "10": {
+        "insurer_id": 33,
+        "insurer_name": "Liberty General"
+    },
+    "11": {
+        "insurer_id": 35,
+        "insurer_name": "Magma HDI"
+    },
+    "12": {
+        "insurer_id": 8,
+        "insurer_name": "National Insurance"
+    },
+    "13": {
+        "insurer_id": 16,
+        "insurer_name": "Raheja QBE"
+    },
+    "14": {
+        "insurer_id": 10,
+        "insurer_name": "Royal Sundaram"
+    },
+    "15": {
+        "insurer_id": 17,
+        "insurer_name": "SBI General"
+    },
+    "16": {
+        "insurer_id": 18,
+        "insurer_name": "Shriram General"
+    },
+    "17": {
+        "insurer_id": 11,
+        "insurer_name": "Tata AIG"
+    },
+    "18": {
+        "insurer_id": 12,
+        "insurer_name": "New India Assurance"
+    },
+    "19": {
+        "insurer_id": 13,
+        "insurer_name": "Oriental Insurance"
+    },
+    "20": {
+        "insurer_id": 14,
+        "insurer_name": "United India"
+    },
+    "21": {
+        "insurer_id": 19,
+        "insurer_name": "Universal Sompo"
+    },
+    "22": {
+        "insurer_id": 46,
+        "insurer_name": "Zuno"
+    }
+}

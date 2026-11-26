@@ -102,15 +102,18 @@ fun PremiumBreakupSection(
         // ==========================================
         // 2. Base Cover Group
         // ==========================================
-        BreakupAccordionGroup(
-            group = breakupDetails.baseCoverGroup,
-            isExpanded = expandedStates["base_cover"] == true,
-            onToggleExpand = {
-                expandedStates["base_cover"] = !(expandedStates["base_cover"] ?: false)
-            }
-        )
+        // Absent for TP-only (no own-damage cover)
+        breakupDetails.baseCoverGroup?.let { baseCover ->
+            BreakupAccordionGroup(
+                group = baseCover,
+                isExpanded = expandedStates["base_cover"] == true,
+                onToggleExpand = {
+                    expandedStates["base_cover"] = !(expandedStates["base_cover"] ?: false)
+                }
+            )
 
-        HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+            HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+        }
 
         // ==========================================
         // 3. Third Party Cover Group
@@ -141,15 +144,18 @@ fun PremiumBreakupSection(
         // ==========================================
         // 5. Addons Group
         // ==========================================
-        BreakupAccordionGroup(
-            group = breakupDetails.addonGroup,
-            isExpanded = expandedStates["addons"] == true,
-            onToggleExpand = {
-                expandedStates["addons"] = !(expandedStates["addons"] ?: false)
-            }
-        )
+        // Absent for TP-only (no add-ons)
+        breakupDetails.addonGroup?.let { addons ->
+            BreakupAccordionGroup(
+                group = addons,
+                isExpanded = expandedStates["addons"] == true,
+                onToggleExpand = {
+                    expandedStates["addons"] = !(expandedStates["addons"] ?: false)
+                }
+            )
 
-        HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+            HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+        }
 
         // ==========================================
         // 6. Taxes Group

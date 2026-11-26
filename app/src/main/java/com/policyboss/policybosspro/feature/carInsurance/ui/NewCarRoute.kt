@@ -26,6 +26,7 @@ fun NewCarRoute(
     onNavigateToQuoteLoading: () -> Unit,
     modifier: Modifier = Modifier,
     carNumber: String? = null,
+    onCloseToHome: () -> Unit = onNavigateBack,
     viewModel: NewCarViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -66,6 +67,7 @@ fun NewCarRoute(
     if (uiState.isVehicleLookupInProgress) {
         BackHandler {
             viewModel.onAction(NewCarAction.OnCancelVehicleLookup)
+            onCloseToHome()
         }
         val lookupState = uiState.vehicleLookupState
         QuoteLoadingScreen(
@@ -77,11 +79,13 @@ fun NewCarRoute(
             },
             title = "We are fetching your\ncar details!",
             errorTitle = "Unable to fetch car details",
-            secondaryActionLabel = "Enter details manually",
+            secondaryActionLabel = null, // error offers only "Try again" and the close (X) button
             progressDescription = "Fetching car details",
-            onCloseClick = { viewModel.onAction(NewCarAction.OnCancelVehicleLookup) },
+            onCloseClick = {
+                viewModel.onAction(NewCarAction.OnCancelVehicleLookup)
+                onCloseToHome()
+            },
             onRetryClick = { viewModel.onAction(NewCarAction.OnRetryVehicleLookup) },
-            onSecondaryClick = { viewModel.onAction(NewCarAction.OnContinueWithoutVehicleInfo) },
             modifier = modifier
         )
         return

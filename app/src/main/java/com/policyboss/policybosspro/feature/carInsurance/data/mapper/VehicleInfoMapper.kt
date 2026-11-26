@@ -1,13 +1,18 @@
 package com.policyboss.policybosspro.feature.carInsurance.data.mapper
 
+import com.policyboss.policybosspro.feature.carInsurance.data.model.FuelVariantResponseDto
+import com.policyboss.policybosspro.feature.carInsurance.data.model.PreferredMakeModelDto
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleModelItemDto
 import com.policyboss.policybosspro.feature.carInsurance.model.CarBrandModelItem
 import com.policyboss.policybosspro.feature.carInsurance.model.CarDetailsStep
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
+import com.policyboss.policybosspro.feature.carInsurance.model.CarVariantItem
+import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantCatalog
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleInfoDomain
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleModel
+import com.policyboss.policybosspro.feature.carInsurance.model.VehiclePremiumData
 import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
 import java.text.ParseException
 import java.text.SimpleDateFormat
@@ -57,13 +62,9 @@ fun VehicleInfoResponseDto.toDomain(enteredRegistrationNumber: String): VehicleI
         fallback = fastlane?.manufacturingDate
     )
 
-    val insurerName = pypInsurerName.orBlank().ifBlank { fastlane?.insuranceCompany.orBlank() }
-    val expiry = if (insurerName.isBlank()) {
-        ""
-    } else {
-        VehicleDateFormatter.toDisplayDate(pypPolicyExpiryDate)
-            .ifBlank { VehicleDateFormatter.toDisplayDate(fastlane?.insuranceUpto) }
-    }
+    // Previous policy comes only from the top-level Pyp_* fields (not FastlaneResponse_Obj)
+    val insurerName = pypInsurerName.orBlank()
+    val expiry = if (insurerName.isBlank()) "" else VehicleDateFormatter.toDisplayDate(pypPolicyExpiryDate)
 
     return VehicleInfoDomain(
         registrationNumber = registrationNumber.orBlank().ifBlank { enteredRegistrationNumber }
@@ -84,11 +85,71 @@ fun VehicleInfoResponseDto.toDomain(enteredRegistrationNumber: String): VehicleI
             .ifBlank { VehicleDateFormatter.toDisplayDate(fastlane?.registrationDate) },
         manufacturingMonth = mfgMonth,
         manufacturingYear = mfgYear,
-        previousInsurerId = if (insurerName.isBlank()) "" else pypInsurerId.orBlank(),
+        previousInsurerId = if (insurerName.isBlank()) "" else pypInsurerId.orBlank().takeIf { it != "0" }.orEmpty(),
         previousInsurerName = insurerName,
         policyExpiryDate = expiry,
-        vehicleDetailId = vehicleDetailId.orBlank()
+        vehicleDetailId = vehicleDetailId.orBlank(),
+        premiumData = toPremiumData(mfgMonth, mfgYear)
     )
+}
+
+private fun VehicleInfoResponseDto.toPremiumData(mfgMonth: String, mfgYear: String): VehiclePremiumData {
+    val fastlane = fastlaneResponse
+    val vahanCc = normalizeCubicCapacity(vahanCubicCapacity.orBlank().ifBlank { fastlane?.cubicCapacity.orBlank() })
+    val matchCc = normalizeCubicCapacity(cubicCapacity.orBlank())
+
+    val vahanFull = listOf(
+        vahanMake.orBlank().ifBlank { fastlane?.makerDescription.orBlank() },
+        vahanModel.orBlank().ifBlank { fastlane?.makerModel.orBlank() },
+        vahanFuel.orBlank().ifBlank { fastlane?.fuelType.orBlank() },
+        if (vahanCc.isNotBlank()) "${vahanCc}CC" else ""
+    ).takeIf { parts -> parts.any { it.isNotBlank() } }?.joinToString("|").orEmpty()
+
+    val matchVehicleFull = listOf(
+        makeName.orBlank(),
+        modelName.orBlank(),
+        variantName.orBlank(),
+        fuelType.orBlank(),
+        if (matchCc.isNotBlank()) "$matchCc CC" else ""
+    ).takeIf { parts -> parts.any { it.isNotBlank() } }?.joinToString("|").orEmpty()
+
+    val statusText = listOfNotNull(status, result).joinToString(" ")
+    val registrationApi = VehicleDateFormatter.toApiDate(registrationDate)
+        .ifBlank { VehicleDateFormatter.toApiDate(fastlane?.registrationDate) }
+
+    return VehiclePremiumData(
+        registrationDateApi = registrationApi,
+        manufactureDateApi = manufactureApiDate(fastlane?.manufacturingDateFormatted, mfgMonth, mfgYear),
+        policyExpiryDateApi = VehicleDateFormatter.toApiDate(pypPolicyExpiryDate),
+        previousPolicyNumber = pypPolicyNumber.orBlank(),
+        chassisNumber = chassisNumber.orBlank(),
+        engineNumber = engineNumber.orBlank(),
+        permanentPincode = permanentPincode.orBlank(),
+        vahanCcSlab = vahanCcSlab.orBlank(),
+        vahanSource = source.orBlank(),
+        vahanCubicCapacity = vahanCc,
+        vahanFull = vahanFull,
+        matchVehicleFull = matchVehicleFull,
+        isFastlaneRto = statusText.contains("success", ignoreCase = true) && !rtoCode.isNullOrBlank(),
+        isFastlaneManufacture = normalizeYear(manufactureYear).isNotBlank(),
+        isFastlaneRegistration = registrationApi.isNotBlank()
+    )
+}
+
+/**
+ * `2011-09` (FastlaneResponse_Obj.manufacturing_date_formatted) -> `2011-09-01`; falls back
+ * to the resolved Manufacture_Month/Year (`Sep`/`2011`).
+ */
+internal fun manufactureApiDate(formatted: String?, month: String, year: String): String {
+    val match = Regex("^(\\d{4})-(\\d{1,2})").find(formatted?.trim().orEmpty())
+    if (match != null) {
+        val monthNumber = match.groupValues[2].toInt()
+        if (monthNumber in 1..12) return "%s-%02d-01".format(Locale.ENGLISH, match.groupValues[1], monthNumber)
+    }
+    val monthIndex = MONTHS.indexOf(normalizeMonth(month))
+    val normalizedYear = normalizeYear(year)
+    if (monthIndex < 0 || normalizedYear.isBlank()) return ""
+    return "%s-%02d-01".format(Locale.ENGLISH, normalizedYear, monthIndex + 1)
 }
 
 // =====================================================================
@@ -104,7 +165,7 @@ fun VehicleInfoResponseDto.toDomain(enteredRegistrationNumber: String): VehicleI
  */
 fun VehicleInfoDomain.toNewCarUiState(baseState: NewCarUiState): NewCarUiState {
     val rtoOption = toRtoOption()
-    val insurerOption = toInsurerOption(baseState.insurerOptions)
+    val insurerOption = toInsurerOption()
     val entryMode = if (hasAllLockedFields) CarEntryMode.WITH_CAR_NUMBER else CarEntryMode.WITHOUT_CAR_NUMBER
 
     return baseState.copy(
@@ -131,6 +192,7 @@ fun VehicleInfoDomain.toNewCarUiState(baseState: NewCarUiState): NewCarUiState {
         fuelId = fuelId.ifBlank { fuelType },
         variant = variantName,
         variantId = variantId.ifBlank { variantName },
+        cubicCapacity = cubicCapacity,
         selectedModel = DropdownOption(modelId.ifBlank { modelName }, modelName),
         selectedVariant = variantName.takeIf { it.isNotBlank() }
             ?.let { DropdownOption(variantId.ifBlank { it }, it) },
@@ -160,11 +222,8 @@ fun VehicleInfoDomain.toNewCarUiState(baseState: NewCarUiState): NewCarUiState {
 
         hasExistingPolicy = hasExistingPolicy,
         policyExpiryDate = if (hasExistingPolicy) policyExpiryDate else "",
-        selectedInsurer = insurerOption,
-        insurerOptions = insurerOption?.let { option ->
-            if (baseState.insurerOptions.contains(option)) baseState.insurerOptions
-            else listOf(option) + baseState.insurerOptions
-        } ?: baseState.insurerOptions
+        // Field shows Pyp_Insurer_Name as returned; the sheet list stays the getPrevInsurer master
+        selectedInsurer = insurerOption
     )
 }
 
@@ -176,17 +235,13 @@ internal fun VehicleInfoDomain.toRtoOption(): DropdownOption<String>? {
 }
 
 /**
- * Matches the previous insurer against the existing options by id, then by name;
- * otherwise builds a new option from the response.
+ * `DropdownOption("17", "SBI GENERAL INS CO LTD")`: Pyp_Insurer_Id as the value (so the
+ * matching getPrevInsurer row is highlighted in the sheet) and Pyp_Insurer_Name, exactly as
+ * returned, as the displayed label.
  */
-internal fun VehicleInfoDomain.toInsurerOption(
-    options: List<DropdownOption<String>>
-): DropdownOption<String>? {
+internal fun VehicleInfoDomain.toInsurerOption(): DropdownOption<String>? {
     if (!hasExistingPolicy) return null
-    val normalizedName = previousInsurerName.normalizeInsurerName()
-    return options.firstOrNull { previousInsurerId.isNotBlank() && it.value.equals(previousInsurerId, ignoreCase = true) }
-        ?: options.firstOrNull { normalizedName.isNotBlank() && it.label.normalizeInsurerName() == normalizedName }
-        ?: DropdownOption(value = previousInsurerId.ifBlank { previousInsurerName }, label = previousInsurerName)
+    return DropdownOption(value = previousInsurerId.ifBlank { previousInsurerName }, label = previousInsurerName)
 }
 
 // =====================================================================
@@ -227,6 +282,88 @@ fun List<VehicleModel>.toBrandModelItems(): List<CarBrandModelItem> =
         }
     }
 
+fun PreferredMakeModelDto.toDomain(): VehicleModel? {
+    val id = modelId?.trim().orEmpty()
+    val make = makeName.orBlank()
+    val model = modelName.orBlank()
+    if (id.isBlank() || id == "0" || make.isBlank() || model.isBlank()) return null
+    return VehicleModel(modelId = id, makeName = make, modelName = model, vehicleName = "$make, $model")
+}
+
+private fun VehicleModel.toBrandModelItem(isPreferred: Boolean) = CarBrandModelItem(
+    makeId = makeName.trim().uppercase(Locale.ENGLISH),
+    makeName = makeName.trim().uppercase(Locale.ENGLISH),
+    modelId = modelId,
+    modelName = modelName,
+    isPopular = isPreferred,
+    vehicleName = vehicleName
+)
+
+/**
+ * Sheet order for step 1 (Make & Model):
+ * 1. Preferred models (get_preferred/make_model), in API order.
+ * 2. The full model_list catalogue, excluding Model_IDs already shown (no duplicates).
+ *
+ * When [priorityMake] is known (e.g. "MARUTI" from vehicle_info_user), that make is
+ * surfaced first: its preferred models, then its remaining catalogue models, then the
+ * other preferred models, then everything else.
+ */
+fun orderBrandModels(
+    preferred: List<VehicleModel>,
+    catalogue: List<VehicleModel>,
+    priorityMake: String? = null
+): List<CarBrandModelItem> {
+    val preferredItems = preferred.distinctBy { it.modelId }.map { it.toBrandModelItem(isPreferred = true) }
+    val preferredIds = preferredItems.mapTo(HashSet()) { it.modelId }
+    val catalogueItems = catalogue.filterNot { it.modelId in preferredIds }.toBrandModelItems()
+
+    val make = priorityMake?.trim().orEmpty()
+    if (make.isBlank()) return preferredItems + catalogueItems
+
+    fun CarBrandModelItem.isMake() = makeName.equals(make, ignoreCase = true)
+    return preferredItems.filter { it.isMake() } +
+        catalogueItems.filter { it.isMake() } +
+        preferredItems.filterNot { it.isMake() } +
+        catalogueItems.filterNot { it.isMake() }
+}
+
+/** Maps beta_GetFuelVariant into fuels (API order) and usable variants. */
+fun FuelVariantResponseDto.toCatalog(requestedModelId: String): FuelVariantCatalog {
+    val variants = variantList.mapNotNull { dto ->
+        val id = dto.vehicleId?.trim().orEmpty()
+        val name = dto.variantName.orBlank()
+        if (id.isBlank() || name.isBlank()) return@mapNotNull null
+        CarVariantItem(
+            variantId = id,
+            variantName = name,
+            fuelType = dto.fuelName.orBlank(),
+            modelId = dto.modelId.orBlank().ifBlank { requestedModelId },
+            fuelId = dto.fuelId.orBlank(),
+            cubicCapacity = normalizeCubicCapacity(dto.cubicCapacity.orBlank()),
+            seatingCapacity = dto.seatingCapacity.orBlank(),
+            exShowroomPrice = dto.exShowroomPrice.orBlank()
+        )
+    }.distinctBy { it.variantId }
+    val fuels = fuelList.mapNotNull { it?.trim()?.takeIf { fuel -> fuel.isNotBlank() } }
+        .distinctBy { it.uppercase(Locale.ENGLISH) }
+    return FuelVariantCatalog(modelId = requestedModelId, fuels = fuels, variants = variants)
+}
+
+/** `MARUTI-WAGON R-1.0 LXI ABS-PETROL- (998 CC)` */
+fun buildCarDetailsSummary(
+    makeName: String,
+    modelName: String,
+    variantName: String,
+    fuelType: String,
+    cubicCapacity: String
+): String {
+    val base = listOf(makeName, modelName, variantName, fuelType)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .joinToString("-")
+    return if (cubicCapacity.isNotBlank()) "$base- ($cubicCapacity CC)" else base
+}
+
 // =====================================================================
 // Helpers
 // =====================================================================
@@ -247,7 +384,14 @@ object VehicleDateFormatter {
         "yyyy-MM-dd'T'HH:mm:ss"
     )
 
-    fun toDisplayDate(raw: String?): String {
+    private const val API_PATTERN = "yyyy-MM-dd"
+
+    fun toDisplayDate(raw: String?): String = format(raw, DISPLAY_PATTERN)
+
+    /** Any supported input (`18/10/2011`, `18-Oct-2011`, ...) -> `2011-10-18`; blank if invalid. */
+    fun toApiDate(raw: String?): String = format(raw, API_PATTERN)
+
+    private fun format(raw: String?, outputPattern: String): String {
         val value = raw?.trim().orEmpty()
         if (value.isBlank()) return ""
         for (pattern in INPUT_PATTERNS) {
@@ -257,7 +401,7 @@ object VehicleDateFormatter {
             } catch (_: ParseException) {
                 null
             } ?: continue
-            return SimpleDateFormat(DISPLAY_PATTERN, Locale.ENGLISH).format(date)
+            return SimpleDateFormat(outputPattern, Locale.ENGLISH).format(date)
         }
         return ""
     }
@@ -310,9 +454,3 @@ private fun String?.orBlank(): String = this?.trim().orEmpty()
 internal fun String.compactRegistration(): String =
     filter { it.isLetterOrDigit() }.uppercase(Locale.ENGLISH)
 
-private fun String.normalizeInsurerName(): String =
-    lowercase(Locale.ENGLISH)
-        .replace(Regex("[^a-z0-9 ]"), " ")
-        .replace(Regex("\\b(co|company|ltd|limited|general|insurance|the)\\b"), " ")
-        .replace(Regex("\\s+"), " ")
-        .trim()

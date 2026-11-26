@@ -68,6 +68,7 @@ import com.policyboss.policybosspro.feature.carInsurance.model.CarDetailsStep
 import com.policyboss.policybosspro.feature.carInsurance.model.CarInsuranceData
 import com.policyboss.policybosspro.feature.carInsurance.model.CarVariantItem
 import com.policyboss.policybosspro.feature.carInsurance.model.NavigationDirection
+import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantState
 import com.policyboss.policybosspro.feature.carInsurance.model.ModelListState
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
@@ -152,8 +153,8 @@ fun CarDetailsBottomSheet(
                 // 3-Step Stepper Indicator
                 CarDetailsStepIndicator(
                     currentStep = uiState.sheetStep,
-                    hasBrandModel = uiState.draftBrandModel != null || uiState.model.isNotBlank(),
-                    hasFuel = !uiState.draftFuel.isNullOrBlank() || uiState.fuel.isNotBlank(),
+                    hasBrandModel = uiState.draftBrandModel != null,
+                    hasFuel = !uiState.draftFuel.isNullOrBlank(),
                     onStepClick = { step -> onAction(NewCarAction.OnSheetStepClick(step)) }
                 )
 
@@ -328,27 +329,49 @@ fun CarDetailsBottomSheet(
                             else -> {
                                 BrandModelGrid(
                                     items = uiState.filteredBrandModels,
-                                    selectedItem = uiState.draftBrandModel,
+                                    selectedItem = uiState.highlightedBrandModel,
                                     onItemSelected = { onAction(NewCarAction.OnDraftBrandModelSelected(it)) }
                                 )
                             }
                         }
                     }
 
-                    CarDetailsStep.FUEL -> {
-                        FuelGrid(
-                            items = uiState.filteredFuelTypes,
-                            selectedItem = uiState.draftFuel,
-                            onItemSelected = { onAction(NewCarAction.OnDraftFuelSelected(it)) }
-                        )
-                    }
+                    CarDetailsStep.FUEL, CarDetailsStep.VARIANT -> {
+                        val fuelVariantState = uiState.fuelVariantState
+                        val hasCatalog = uiState.activeFuelVariantCatalog != null
+                        when {
+                            !hasCatalog && fuelVariantState is FuelVariantState.Error -> {
+                                CatalogueStatusContent(
+                                    message = fuelVariantState.message,
+                                    actionLabel = "Try again",
+                                    onActionClick = { onAction(NewCarAction.OnRetryFuelVariants) }
+                                )
+                            }
 
-                    CarDetailsStep.VARIANT -> {
-                        VariantGrid(
-                            items = uiState.filteredVariants,
-                            selectedItem = uiState.draftVariant,
-                            onItemSelected = { onAction(NewCarAction.OnDraftVariantSelected(it)) }
-                        )
+                            !hasCatalog && targetStep == CarDetailsStep.FUEL -> {
+                                CatalogueStatusContent(message = "Loading fuel types...", isLoading = true)
+                            }
+
+                            !hasCatalog && uiState.filteredVariants.isEmpty() -> {
+                                CatalogueStatusContent(message = "Loading variants...", isLoading = true)
+                            }
+
+                            targetStep == CarDetailsStep.FUEL -> {
+                                FuelGrid(
+                                    items = uiState.filteredFuelTypes,
+                                    selectedItem = uiState.highlightedFuel,
+                                    onItemSelected = { onAction(NewCarAction.OnDraftFuelSelected(it)) }
+                                )
+                            }
+
+                            else -> {
+                                VariantGrid(
+                                    items = uiState.filteredVariants,
+                                    selectedItem = uiState.highlightedVariant,
+                                    onItemSelected = { onAction(NewCarAction.OnDraftVariantSelected(it)) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -713,7 +736,7 @@ private fun VariantGrid(
             items(items, key = { it.variantId }) { variant ->
                 val isSelected = selectedItem?.variantId == variant.variantId
                 CatalogueItemCard(
-                    title = variant.variantName,
+                    title = variant.displayLabel,
                     isSelected = isSelected,
                     onClick = { onItemSelected(variant) }
                 )

@@ -23,6 +23,25 @@ object NetworkConstants {
      */
     const val DEFAULT_TOKEN = "1234567890"
 
+    // =========================================================================
+    // Vehicle & Quote Security Credentials (Shared across Quote & Vahan APIs)
+    // =========================================================================
+    /**
+     * Fixed secret key for PolicyBoss vehicle & quote lookup services.
+     */
+    const val SECRET_KEY = "SECRET-HZ07QRWY-JIBT-XRMQ-ZP95-J0RWP3DYRACW"
+
+    /**
+     * Fixed client key for PolicyBoss vehicle & quote lookup services.
+     */
+    const val CLIENT_KEY = "CLIENT-CNTP6NYE-CU9N-DUZW-CSPI-SH1IS4DOVHB9"
+
+    /**
+     * Primary active SESSION_ID used across all quote request bodies.
+     * Easily modify this value here whenever a new daily/session key is issued.
+     */
+    const val SESSION_ID = "-HFNrqwMtteX9alZq9lc1OBqU-h0Wv35"
+
     /**
      * Network request timeouts in seconds.
      */

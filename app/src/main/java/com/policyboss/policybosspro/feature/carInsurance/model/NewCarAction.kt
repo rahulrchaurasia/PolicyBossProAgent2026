@@ -13,6 +13,10 @@ sealed interface NewCarAction {
 
     // Live Make/Model catalogue (bottom sheet)
     data object OnRetryModelList : NewCarAction
+    data object OnRetryFuelVariants : NewCarAction
+
+    // Previous / TP insurer sheet opened: (re)load the getPrevInsurer list if it is empty
+    data object OnInsurerSheetOpened : NewCarAction
 
     // Customer Name
     data class OnCustomerNameChange(val name: String) : NewCarAction

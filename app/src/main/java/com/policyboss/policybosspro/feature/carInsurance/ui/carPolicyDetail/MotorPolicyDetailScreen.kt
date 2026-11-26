@@ -1,5 +1,7 @@
 package com.policyboss.policybosspro.feature.carInsurance.ui.carPolicyDetail
 
+import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
+import com.policyboss.policybosspro.feature.carInsurance.model.PolicyType
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -139,6 +141,21 @@ private fun MotorPolicyDetailScreenCollapsedPreview() {
 private fun MotorPolicyDetailScreenExpandedPreview() {
     MotorPolicyDetailScreen(
         breakupDetails = PolicyBreakupDetails.createSample(),
+        onBackClick = {},
+        onBuyNowClick = {},
+        initialInfoExpanded = true
+    )
+}
+
+@Preview(showBackground = true, name = "TP only - no OD, add-ons, IDV or NCB")
+@Composable
+private fun MotorPolicyDetailScreenTpPreview() {
+    MotorPolicyDetailScreen(
+        breakupDetails = PolicyBreakupDetails.createSample(
+            uiState = NewCarUiState(
+                policyType = PolicyType.TP_ONLY
+            )
+        ),
         onBackClick = {},
         onBuyNowClick = {},
         initialInfoExpanded = true

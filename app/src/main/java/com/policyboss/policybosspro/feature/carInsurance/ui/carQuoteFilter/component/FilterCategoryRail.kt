@@ -24,7 +24,8 @@ import com.policyboss.policybosspro.ui.theme.AppColors
 fun FilterCategoryRail(
     selectedCategory: FilterCategory,
     onCategorySelected: (FilterCategory) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    categories: List<FilterCategory> = FilterCategory.entries
 ) {
     Column(
         modifier = modifier
@@ -32,7 +33,7 @@ fun FilterCategoryRail(
             .fillMaxHeight()
             .background(Color(0xFFF0F7FF))
     ) {
-        FilterCategory.entries.forEach { category ->
+        categories.forEach { category ->
             val isSelected = category == selectedCategory
 
             Box(

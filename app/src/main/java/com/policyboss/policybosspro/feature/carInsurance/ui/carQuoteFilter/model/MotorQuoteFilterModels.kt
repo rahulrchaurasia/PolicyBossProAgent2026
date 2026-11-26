@@ -98,6 +98,23 @@ data class QuoteFilterState(
     val isIdvActive: Boolean
         get() = isIdvExplicitlyChanged || (selectedIdv != defaultIdv)
 
+    /** Filters visible in TP-only mode: liability covers and un-named passenger cover. */
+    val additionalCoverFilterCount: Int
+        get() = selectedLiabilityCoverIds.size +
+            if (!selectedUnNamedPassengerCover.isNullOrBlank() && selectedUnNamedPassengerCover != "No") 1 else 0
+
+    /** Count for the Apply button; TP-only counts just the Additional Cover filters it shows. */
+    fun activeFilterCount(additionalCoverOnly: Boolean): Int =
+        if (additionalCoverOnly) additionalCoverFilterCount else activeFilterCount
+
+    /** Additional Cover cleared, every other category untouched (Reset in TP-only mode). */
+    fun resetAdditionalCover(): QuoteFilterState = copy(
+        selectedLiabilityCoverIds = emptySet(),
+        selectedUnNamedPassengerCover = "No",
+        electricalAccessoriesAmount = "0",
+        nonElectricalAccessoriesAmount = "0"
+    )
+
     val activeFilterCount: Int
         get() {
             var count = 0

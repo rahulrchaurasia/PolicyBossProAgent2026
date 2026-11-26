@@ -9,6 +9,10 @@ data class MotorQuote(
     val id: String,
     val insurerName: String,
     val insurerLogoType: String = "acko", // "acko", "tata", "hdfc", "icici", "bajaj"
+    /** Remote logo from the quote API; takes priority over [insurerLogoType]. */
+    val insurerLogoUrl: String? = null,
+    /** Insurer plan name from the quote API, e.g. `TP`, `Basic`. */
+    val planName: String? = null,
     val isRecommended: Boolean = false,
     val finalPremium: Int,
     val originalPremium: Int? = null,

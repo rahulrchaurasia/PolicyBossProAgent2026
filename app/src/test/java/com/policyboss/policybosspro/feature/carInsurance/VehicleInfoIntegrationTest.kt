@@ -11,6 +11,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoR
 import com.policyboss.policybosspro.feature.carInsurance.data.model.VehicleInfoResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsuranceRepository
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.VehicleInfoSessionProvider
+import com.policyboss.policybosspro.feature.carInsurance.model.CarDetailsStep
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.ModelListState
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
@@ -19,6 +20,7 @@ import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleLookupState
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleModel
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
+import com.policyboss.policybosspro.ui.components.dropDown.DropdownOption
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -139,19 +141,21 @@ class VehicleInfoIntegrationTest {
 
         assertTrue(state.hasExistingPolicy)
         assertEquals("09-Jun-2030", state.policyExpiryDate)
-        // "Bajaj Allianz General Insurance Co. Ltd." matches the existing option by name
-        assertEquals("BAJAJ_ALLIANZ", state.selectedInsurer?.value)
+        // Pyp_Insurer_Id as the value, Pyp_Insurer_Name exactly as returned as the label
+        assertEquals("9", state.selectedInsurer?.value)
+        assertEquals("Bajaj Allianz General Insurance Co. Ltd.", state.selectedInsurer?.label)
         assertTrue(state.isFormValid)
     }
 
     @Test
-    fun `unknown insurer builds option from response id and name`() {
+    fun `vahan insurer is shown as returned and never injected into the master list`() {
+        val master = listOf(DropdownOption("46", "Zuno"), DropdownOption("17", "SBI General"))
         val dto = parse(MH01BB0197_RESPONSE.replace("Bajaj Allianz General Insurance Co. Ltd.", "Zuno General Insurance"))
-        val state = dto.toDomain("MH01BB0197").toNewCarUiState(NewCarUiState())
+        val state = dto.toDomain("MH01BB0197").toNewCarUiState(NewCarUiState(insurerOptions = master))
 
         assertEquals("9", state.selectedInsurer?.value)
         assertEquals("Zuno General Insurance", state.selectedInsurer?.label)
-        assertTrue(state.insurerOptions.first() == state.selectedInsurer)
+        assertEquals(master, state.insurerOptions)
     }
 
     @Test
@@ -179,14 +183,135 @@ class VehicleInfoIntegrationTest {
                "insurance_upto":"2030-06-09"}}"""
         )
         val domain = dto.toDomain("MH01BB0197")
+        val state = domain.toNewCarUiState(NewCarUiState())
 
         assertEquals("FAST OWNER", domain.ownerName)
         assertEquals("VM, VMODEL, CNG (998 CC)", domain.vahanSummary)
         assertEquals("18-Oct-2011", domain.registrationDate)
         assertEquals("Sep", domain.manufacturingMonth)
         assertEquals("2011", domain.manufacturingYear)
-        assertEquals("HDFC ERGO General Insurance", domain.previousInsurerName)
-        assertEquals("09-Jun-2030", domain.policyExpiryDate)
+        // Previous policy uses only top-level Pyp_* fields: Fastlane insurer/expiry are ignored
+        assertEquals("", domain.previousInsurerName)
+        assertEquals("", domain.policyExpiryDate)
+        assertFalse(state.hasExistingPolicy)
+        assertNull(state.selectedInsurer)
+        assertEquals("", state.policyExpiryDate)
+    }
+
+    // ---------------------------------------------------------------- Previous insurer master list
+
+    private fun insurerRepo(api: ThrowingCarInsuranceApi = ThrowingCarInsuranceApi()) =
+        CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
+
+    @Test
+    fun `real getPrevInsurer response (index-keyed object) parses in key order`() {
+        val raw = resource("vehicle/prev_insurer_1.json")
+        val insurers = insurerRepo().parsePreviousInsurers(testJson.parseToJsonElement(raw))
+
+        assertEquals(23, insurers.size)
+        assertEquals(DropdownOption("45", "Acko"), insurers.first())
+        assertEquals(DropdownOption("46", "Zuno"), insurers.last())
+        assertEquals("SBI General", insurers.first { it.value == "17" }.label)
+        assertTrue(insurers.all { it.iconRes == null })
+    }
+
+    @Test
+    fun `insurer parser handles numeric key order, arrays and bad items`() {
+        val repo = insurerRepo()
+        val keyed = repo.parsePreviousInsurers(testJson.parseToJsonElement(
+            """{"10":{"insurer_id":3,"insurer_name":"C"},"2":{"insurer_id":"1","insurer_name":"A"},
+               "5":{"insurer_id":null,"insurer_name":"NoId"},"7":"junk","8":{"insurer_id":1,"insurer_name":"Dup"}}"""
+        ))
+        assertEquals(listOf(DropdownOption("1", "A"), DropdownOption("3", "C")), keyed)
+
+        val array = repo.parsePreviousInsurers(testJson.parseToJsonElement("""[{"insurer_id":17,"insurer_name":"SBI General"}]"""))
+        assertEquals(listOf(DropdownOption("17", "SBI General")), array)
+    }
+
+    @Test
+    fun `repository caches insurer list and does not cache errors`() = runTest {
+        var calls = 0
+        var fail = true
+        val api = object : ThrowingCarInsuranceApi() {
+            override suspend fun getPreviousInsurers(productId: Int): Response<JsonElement> {
+                calls++
+                assertEquals(1, productId)
+                return if (fail) Response.error(500, "".toResponseBody())
+                else Response.success(testJson.parseToJsonElement(resource("vehicle/prev_insurer_1.json")))
+            }
+        }
+        val repo = insurerRepo(api)
+
+        assertTrue(repo.getPreviousInsurers() is Resource.Error)
+        fail = false
+        repeat(3) { assertTrue(repo.getPreviousInsurers() is Resource.Success) }
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun `lookup loads insurers on the loader and binds Pyp insurer and expiry`() {
+        val liveVehicle = parse(resource("vehicle/vehicle_info_MH01BB0197.json")).toDomain("MH01BB0197")
+        val master = insurerRepo().parsePreviousInsurers(testJson.parseToJsonElement(resource("vehicle/prev_insurer_1.json")))
+        val repo = FakeCarInsuranceRepository(
+            vehicleInfo = { Resource.Success(liveVehicle) },
+            insurers = { Resource.Success(master) }
+        )
+        val vm = NewCarViewModel(repo)
+
+        vm.initForMode(CarEntryMode.WITH_CAR_NUMBER, "MH01BB0197")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(1, repo.insurerCalls)
+        assertTrue(state.hasExistingPolicy)
+        assertEquals("SBI GENERAL INS CO LTD", state.selectedInsurer?.label) // field shows Pyp_Insurer_Name
+        assertEquals("17", state.selectedInsurer?.value)                     // highlights "SBI General" row
+        assertEquals("09-Jun-2030", state.policyExpiryDate)                   // Pyp_Policy_Expiry_Date
+        assertEquals(master, state.insurerOptions)                            // sheet = master list only
+        assertEquals(master, state.tpInsurerOptions)
+
+        // Editing from the sheet replaces it with the master option
+        val sbiMaster = state.insurerOptions.first { it.value == state.selectedInsurer?.value }
+        vm.onAction(NewCarAction.OnInsurerSelected(sbiMaster))
+        assertEquals(DropdownOption("17", "SBI General"), vm.uiState.value.selectedInsurer)
+    }
+
+    @Test
+    fun `insurer api failure does not fail the lookup and sheet open retries`() {
+        var attempt = 0
+        val repo = FakeCarInsuranceRepository(insurers = {
+            attempt++
+            if (attempt == 1) Resource.Error("No internet connection.") else Resource.Success(sampleInsurers)
+        })
+        val vm = NewCarViewModel(repo)
+
+        vm.initForMode(CarEntryMode.WITH_CAR_NUMBER, "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(VehicleLookupState.Idle, vm.uiState.value.vehicleLookupState)
+        assertEquals("PRIYANKA VYAS", vm.uiState.value.customerName)
+        assertTrue(vm.uiState.value.insurerOptions.isEmpty())
+
+        vm.onAction(NewCarAction.OnInsurerSheetOpened)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(sampleInsurers, vm.uiState.value.insurerOptions)
+
+        // Already loaded: opening again does not call the API
+        vm.onAction(NewCarAction.OnInsurerSheetOpened)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, repo.insurerCalls)
+    }
+
+    @Test
+    fun `manual entry loads the insurer master list`() {
+        val repo = FakeCarInsuranceRepository()
+        val vm = NewCarViewModel(repo)
+
+        vm.initForMode(CarEntryMode.WITHOUT_CAR_NUMBER)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(sampleInsurers, vm.uiState.value.insurerOptions)
+        assertNull(vm.uiState.value.selectedInsurer)
+        assertEquals(1, repo.insurerCalls)
     }
 
     @Test
@@ -263,7 +388,7 @@ class VehicleInfoIntegrationTest {
               "product_id": 1,
               "ss_id": 150253,
               "source": "PB-BETA",
-              "session_id": "PolYkcquP-c2GlAg1xQXWq5fsD8KxF2V",
+              "session_id": "${VehicleInfoRequest.SESSION_ID}",
               "g-recaptcha-response": ""
             }
             """.trimIndent()
@@ -414,8 +539,9 @@ class VehicleInfoIntegrationTest {
         // Opening the sheet preselects the looked-up vehicle without another model-list call
         vm.onAction(NewCarAction.OpenCarDetailsSheet)
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals("38", vm.uiState.value.draftBrandModel?.modelId)
-        assertEquals("VXI+", vm.uiState.value.draftVariant?.variantName)
+        assertEquals(CarDetailsStep.MAKE_MODEL, vm.uiState.value.sheetStep)
+        assertEquals("38", vm.uiState.value.highlightedBrandModel?.modelId)
+        assertEquals("VXI+", vm.uiState.value.highlightedVariant?.variantName)
         assertTrue(vm.uiState.value.filteredVariants.any { it.variantName == "VXI+" })
         assertEquals(1, repo.modelListCalls)
     }

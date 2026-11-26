@@ -15,7 +15,9 @@ import com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption
 import com.policyboss.policybosspro.feature.carInsurance.model.ModelListState
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleLookupState
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleModel
-import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toBrandModelItems
+import com.policyboss.policybosspro.feature.carInsurance.data.mapper.buildCarDetailsSummary
+import com.policyboss.policybosspro.feature.carInsurance.data.mapper.orderBrandModels
+import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantState
 import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toNewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.model.DatePickerType
 import com.policyboss.policybosspro.feature.carInsurance.model.NavigationDirection
@@ -23,6 +25,10 @@ import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumInitiateResult
+import com.policyboss.policybosspro.feature.carInsurance.model.VehicleInfoDomain
+import com.policyboss.policybosspro.feature.carInsurance.model.toPremiumInitiateInput
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuoteList
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteFetchState
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteLoadingUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.MotorQuoteFilterData
@@ -59,8 +65,16 @@ class NewCarViewModel @Inject constructor(
     private var initializedMode: CarEntryMode? = null
     private var initializedCarNumber: String? = null
     private var quoteJob: Job? = null
+
+    /** Last successful vahan lookup; drives `premium_initiate`. Cleared whenever the form resets. */
+    private var vehicleInfo: VehicleInfoDomain? = null
     private var vehicleLookupJob: Job? = null
     private var modelListJob: Job? = null
+    private var fuelVariantJob: Job? = null
+
+    /** Raw catalogues kept so the sheet order can be rebuilt for the current Make. */
+    private var catalogueModels: List<VehicleModel> = emptyList()
+    private var preferredModels: List<VehicleModel> = emptyList()
 
     fun initForMode(
         entryMode: CarEntryMode,
@@ -77,6 +91,7 @@ class NewCarViewModel @Inject constructor(
             val manualMode = if (entryMode == CarEntryMode.WITH_CAR_NUMBER) CarEntryMode.WITHOUT_CAR_NUMBER else entryMode
             applyEntryMode(manualMode, carNumber = null)
             loadModelList()
+            loadInsurers()
         }
     }
 
@@ -93,6 +108,7 @@ class NewCarViewModel @Inject constructor(
      */
     private fun applyEntryMode(entryMode: CarEntryMode, carNumber: String?) {
         cancelVehicleLookupJob()
+        vehicleInfo = null
         _uiState.update { current ->
             val keepCustomerName = current.entryMode != CarEntryMode.WITH_CAR_NUMBER
             val base = current.copy(
@@ -110,6 +126,9 @@ class NewCarViewModel @Inject constructor(
                 fuelId = "",
                 variant = "",
                 variantId = "",
+                cubicCapacity = "",
+                seatingCapacity = "",
+                exShowroomPrice = "",
                 isCarDetailsSheetOpen = false,
                 sheetStep = CarDetailsStep.MAKE_MODEL,
                 draftBrandModel = null,
@@ -126,7 +145,6 @@ class NewCarViewModel @Inject constructor(
                 selectedVariant = null,
                 selectedFuel = null,
                 selectedInsurer = null,
-                insurerOptions = CarInsuranceData.insurerOptions,
                 selectedTpInsurer = null,
                 policyExpiryDate = "",
                 hasClaim = false,
@@ -196,20 +214,28 @@ class NewCarViewModel @Inject constructor(
         }
 
         vehicleLookupJob = viewModelScope.launch {
-            val (infoResult, modelsResult) = coroutineScope {
+            val (infoResult, catalogueResult, insurersResult) = coroutineScope {
                 val info = async { repository.getVehicleInfo(carNumber) }
-                val models = async { repository.getModelList() }
-                info.await() to models.await()
+                val catalogue = async { fetchMakeModelCatalogue() }
+                val insurers = async { repository.getPreviousInsurers() }
+                Triple(info.await(), catalogue.await(), insurers.await())
             }
 
-            applyModelListResult(modelsResult)
+            // Insurer master list is optional for the lookup: a failure never fails it
+            applyInsurersResult(insurersResult)
+
+            val vahanMake = (infoResult as? Resource.Success)?.data?.makeName
+            applyMakeModelCatalogue(catalogueResult, priorityMake = vahanMake)
 
             when (infoResult) {
                 is Resource.Success -> {
                     val vehicle = infoResult.data
+                    vehicleInfo = vehicle
                     _uiState.update { current ->
                         vehicle.toNewCarUiState(current).copy(vehicleLookupState = VehicleLookupState.Idle)
                     }
+                    // Warm the fuel/variant cache so the sheet opens on the right variant
+                    loadFuelVariants(vehicle.modelId, vehicle.makeName)
                     if (!vehicle.hasAllLockedFields) {
                         sendFormEvent(
                             NewCarUiEvent.ShowSnackbar(
@@ -240,11 +266,22 @@ class NewCarViewModel @Inject constructor(
     private fun continueWithoutVehicleInfo() {
         applyEntryMode(CarEntryMode.WITHOUT_CAR_NUMBER, carNumber = null)
         loadModelList()
+        loadInsurers()
     }
 
     private fun cancelVehicleLookup() {
         cancelVehicleLookupJob()
-        _uiState.update { it.copy(vehicleLookupState = VehicleLookupState.Idle) }
+        quoteJob?.cancel()
+        quoteJob = null
+        initializedMode = null
+        initializedCarNumber = null
+        _uiState.update {
+            it.copy(
+                vehicleLookupState = VehicleLookupState.Idle,
+                quoteState = QuoteFetchState.Idle,
+                errorMessage = null
+            )
+        }
         sendFormEvent(NewCarUiEvent.NavigateBack)
     }
 
@@ -254,31 +291,99 @@ class NewCarViewModel @Inject constructor(
     }
 
     /**
-     * Loads the live Make/Model catalogue once; the repository cache makes repeat calls
-     * (e.g. reopening the bottom sheet) free, and failed loads can be retried.
+     * Loads step 1 of the sheet: preferred Make/Models (get_preferred) + the full model_list,
+     * concurrently. Both are cached in the repository, so reopening the sheet is free; a
+     * failed load can be retried.
      */
     private fun loadModelList() {
         if (modelListJob?.isActive == true || vehicleLookupJob?.isActive == true) return
         val state = _uiState.value
-        if (state.modelListState is ModelListState.Success && state.brandModels.isNotEmpty()) return
+        if (state.modelListState is ModelListState.Success && state.brandModels.isNotEmpty()) {
+            // Re-order for the current Make (e.g. after a vahan lookup or a new selection)
+            publishBrandModels(priorityMake = state.make)
+            return
+        }
 
         _uiState.update { it.copy(modelListState = ModelListState.Loading) }
         modelListJob = viewModelScope.launch {
-            applyModelListResult(repository.getModelList())
+            applyMakeModelCatalogue(fetchMakeModelCatalogue(), priorityMake = _uiState.value.make)
         }
     }
 
-    private fun applyModelListResult(result: Resource<List<VehicleModel>>) {
-        _uiState.update { current ->
-            when (result) {
-                is Resource.Success -> current.copy(
-                    brandModels = result.data.toBrandModelItems(),
-                    modelListState = ModelListState.Success
-                )
-                is Resource.Error -> current.copy(
-                    modelListState = ModelListState.Error(result.message)
-                )
+    private suspend fun fetchMakeModelCatalogue(): Pair<Resource<List<VehicleModel>>, Resource<List<VehicleModel>>> =
+        coroutineScope {
+            val models = async { repository.getModelList() }
+            val preferred = async { repository.getPreferredMakeModels() }
+            models.await() to preferred.await()
+        }
+
+    /** model_list is required; get_preferred is optional (its failure just hides the top list). */
+    private fun applyMakeModelCatalogue(
+        result: Pair<Resource<List<VehicleModel>>, Resource<List<VehicleModel>>>,
+        priorityMake: String?
+    ) {
+        val (modelsResult, preferredResult) = result
+        if (modelsResult is Resource.Success) catalogueModels = modelsResult.data
+        if (preferredResult is Resource.Success) preferredModels = preferredResult.data
+
+        if (catalogueModels.isEmpty() && preferredModels.isEmpty() && modelsResult is Resource.Error) {
+            _uiState.update { it.copy(modelListState = ModelListState.Error(modelsResult.message)) }
+            return
+        }
+        publishBrandModels(priorityMake)
+    }
+
+    private fun publishBrandModels(priorityMake: String?) {
+        val ordered = orderBrandModels(preferredModels, catalogueModels, priorityMake)
+        _uiState.update { it.copy(brandModels = ordered, modelListState = ModelListState.Success) }
+    }
+
+    /**
+     * Step 2/3 data for one model (beta_GetFuelVariant). Skips the call when that model's
+     * catalogue is already in state; the repository caches it across sheet openings.
+     */
+    private fun loadFuelVariants(modelId: String, makeName: String, force: Boolean = false) {
+        if (modelId.isBlank() || makeName.isBlank()) return
+        val state = _uiState.value
+        val loadedForModel = state.fuelVariantCatalog?.modelId?.equals(modelId, ignoreCase = true) == true
+        if (!force && loadedForModel && state.fuelVariantState is FuelVariantState.Success) return
+        if (!force && fuelVariantJob?.isActive == true && state.fuelVariantState is FuelVariantState.Loading &&
+            loadingFuelVariantModelId == modelId
+        ) return
+
+        fuelVariantJob?.cancel()
+        loadingFuelVariantModelId = modelId
+        _uiState.update { it.copy(fuelVariantState = FuelVariantState.Loading) }
+        fuelVariantJob = viewModelScope.launch {
+            when (val result = repository.getFuelVariants(modelId, makeName)) {
+                is Resource.Success -> _uiState.update {
+                    it.copy(fuelVariantCatalog = result.data, fuelVariantState = FuelVariantState.Success)
+                }
+                is Resource.Error -> _uiState.update {
+                    it.copy(fuelVariantState = FuelVariantState.Error(result.message))
+                }
             }
+        }
+    }
+
+    private var loadingFuelVariantModelId: String? = null
+
+    private var insurerJob: Job? = null
+
+    /**
+     * Previous/TP insurer master list (insurers/getPrevInsurer/1). Skipped when already
+     * loaded or in flight; the repository caches it, so retries are cheap.
+     */
+    private fun loadInsurers() {
+        if (insurerJob?.isActive == true || _uiState.value.insurerOptions.isNotEmpty()) return
+        insurerJob = viewModelScope.launch {
+            applyInsurersResult(repository.getPreviousInsurers())
+        }
+    }
+
+    private fun applyInsurersResult(result: Resource<List<DropdownOption<String>>>) {
+        if (result is Resource.Success && result.data.isNotEmpty()) {
+            _uiState.update { it.copy(insurerOptions = result.data, tpInsurerOptions = result.data) }
         }
     }
 
@@ -295,6 +400,18 @@ class NewCarViewModel @Inject constructor(
             is NewCarAction.OnContinueWithoutVehicleInfo -> continueWithoutVehicleInfo()
 
             is NewCarAction.OnRetryModelList -> loadModelList()
+
+            is NewCarAction.OnInsurerSheetOpened -> loadInsurers()
+
+            is NewCarAction.OnRetryFuelVariants -> {
+                val state = _uiState.value
+                val brandModel = state.draftBrandModel
+                loadFuelVariants(
+                    modelId = brandModel?.modelId ?: state.modelId,
+                    makeName = brandModel?.makeName ?: state.make,
+                    force = true
+                )
+            }
 
             is NewCarAction.UpdateManufacturingMonth -> {
                 if (_uiState.value.isContinueWithCarNumber) return
@@ -406,49 +523,18 @@ class NewCarViewModel @Inject constructor(
             is NewCarAction.OpenCarDetailsSheet -> {
                 loadModelList()
                 val state = _uiState.value
-                val hasCommittedVehicle = state.make.isNotBlank() && state.model.isNotBlank() && state.variant.isNotBlank()
-                if (hasCommittedVehicle) {
-                    val brandModel = state.brandModels.firstOrNull {
-                        it.modelId.equals(state.modelId, ignoreCase = true) &&
-                            (it.makeId.equals(state.makeId, ignoreCase = true) || it.makeName.equals(state.make, ignoreCase = true))
-                    } ?: CarBrandModelItem(
-                        makeId = state.makeId.ifBlank { state.make },
-                        makeName = state.make,
-                        modelId = state.modelId.ifBlank { state.model },
-                        modelName = state.model
+                // Warm step 2/3 data for the current car; the sheet still starts at step 1
+                if (state.model.isNotBlank()) loadFuelVariants(state.modelId, state.make)
+                _uiState.update {
+                    it.copy(
+                        isCarDetailsSheetOpen = true,
+                        sheetStep = CarDetailsStep.MAKE_MODEL,
+                        sheetNavigationDirection = NavigationDirection.FORWARD,
+                        draftBrandModel = null,
+                        draftFuel = null,
+                        draftVariant = null,
+                        sheetSearchQuery = ""
                     )
-                    val variantItem = CarInsuranceData.getVariantsFor(brandModel.makeId, brandModel.modelId, state.fuel)
-                        .firstOrNull {
-                            it.variantId.equals(state.variantId, ignoreCase = true) ||
-                                    it.variantName.equals(state.variant, ignoreCase = true)
-                        } ?: CarVariantItem(
-                            variantId = state.variantId.ifBlank { state.variant },
-                            variantName = state.variant,
-                            fuelType = state.fuel
-                        )
-                    _uiState.update {
-                        it.copy(
-                            isCarDetailsSheetOpen = true,
-                            sheetStep = CarDetailsStep.VARIANT,
-                            sheetNavigationDirection = NavigationDirection.FORWARD,
-                            draftBrandModel = brandModel,
-                            draftFuel = state.fuel.ifBlank { "PETROL" },
-                            draftVariant = variantItem,
-                            sheetSearchQuery = ""
-                        )
-                    }
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            isCarDetailsSheetOpen = true,
-                            sheetStep = CarDetailsStep.MAKE_MODEL,
-                            sheetNavigationDirection = NavigationDirection.FORWARD,
-                            draftBrandModel = null,
-                            draftFuel = null,
-                            draftVariant = null,
-                            sheetSearchQuery = ""
-                        )
-                    }
                 }
             }
 
@@ -467,11 +553,15 @@ class NewCarViewModel @Inject constructor(
             is NewCarAction.OnSheetStepClick -> {
                 val state = _uiState.value
                 if (action.step == state.sheetStep) return
+                if (action.step != CarDetailsStep.MAKE_MODEL) {
+                    val brandModel = state.draftBrandModel
+                    loadFuelVariants(brandModel?.modelId ?: state.modelId, brandModel?.makeName ?: state.make)
+                }
                 val canNavigate = when (action.step) {
                     CarDetailsStep.MAKE_MODEL -> true
-                    CarDetailsStep.FUEL -> state.draftBrandModel != null || state.model.isNotBlank()
-                    CarDetailsStep.VARIANT -> (state.draftBrandModel != null || state.model.isNotBlank()) &&
-                            (!state.draftFuel.isNullOrBlank() || state.fuel.isNotBlank())
+                    // Strict Brand -> Fuel -> Variant: only choices made in this sheet session unlock steps
+                    CarDetailsStep.FUEL -> state.draftBrandModel != null
+                    CarDetailsStep.VARIANT -> state.draftBrandModel != null && !state.draftFuel.isNullOrBlank()
                 }
                 if (canNavigate) {
                     val direction = if (action.step.ordinal > state.sheetStep.ordinal) {
@@ -525,6 +615,7 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnDraftBrandModelSelected -> {
+                loadFuelVariants(action.item.modelId, action.item.makeName)
                 _uiState.update {
                     it.copy(
                         draftBrandModel = action.item,
@@ -563,10 +654,12 @@ class NewCarViewModel @Inject constructor(
                 val makeName = brandModel.makeName
                 val makeId = brandModel.makeId
                 val modelName = brandModel.modelName
-                val modelId = brandModel.modelId
+                val modelId = action.item.modelId.ifBlank { brandModel.modelId }
                 val variantName = action.item.variantName
-                val variantId = action.item.variantId
-                val summary = "$makeName, $modelName, $chosenFuel, $variantName".uppercase()
+                val variantId = action.item.variantId          // Vehicle_ID
+                val fuelId = action.item.fuelId.ifBlank { chosenFuel }
+                val cubicCapacity = action.item.cubicCapacity
+                val summary = buildCarDetailsSummary(makeName, modelName, variantName, chosenFuel, cubicCapacity)
 
                 _uiState.update {
                     it.copy(
@@ -575,12 +668,15 @@ class NewCarViewModel @Inject constructor(
                         model = modelName,
                         modelId = modelId,
                         fuel = chosenFuel,
-                        fuelId = chosenFuel,
+                        fuelId = fuelId,
                         variant = variantName,
                         variantId = variantId,
+                        cubicCapacity = cubicCapacity,
+                        seatingCapacity = action.item.seatingCapacity,
+                        exShowroomPrice = action.item.exShowroomPrice,
                         selectedModel = DropdownOption(modelId, modelName),
-                        selectedVariant = DropdownOption(variantId, variantName),
-                        selectedFuel = DropdownOption(chosenFuel, chosenFuel),
+                        selectedVariant = DropdownOption(variantId, action.item.displayLabel),
+                        selectedFuel = DropdownOption(fuelId, chosenFuel),
                         carDetailsSummary = summary,
                         isCarDetailsSheetOpen = false,
                         sheetSearchQuery = "",
@@ -832,14 +928,14 @@ class NewCarViewModel @Inject constructor(
             is NewCarAction.OpenFilterScreen -> {
                 _uiState.update {
                     it.copy(
-                        selectedFilterCategory = action.category,
+                        selectedFilterCategory = it.coerceFilterCategory(action.category),
                         draftQuoteFilter = it.appliedQuoteFilter
                     )
                 }
             }
 
             is NewCarAction.OnSelectFilterCategory -> {
-                _uiState.update { it.copy(selectedFilterCategory = action.category) }
+                _uiState.update { it.copy(selectedFilterCategory = it.coerceFilterCategory(action.category)) }
             }
 
             is NewCarAction.OnUpdateDraftIdv -> {
@@ -901,6 +997,10 @@ class NewCarViewModel @Inject constructor(
 
             is NewCarAction.OnResetDraftFilters -> {
                 _uiState.update { current ->
+                    // TP-only shows Additional Cover alone, so Reset leaves the hidden categories alone
+                    if (current.isTpOnlyFilter) {
+                        return@update current.copy(draftQuoteFilter = current.draftQuoteFilter.resetAdditionalCover())
+                    }
                     current.copy(
                         draftQuoteFilter = QuoteFilterState(
                             selectedIdv = current.draftQuoteFilter.defaultIdv,
@@ -1100,12 +1200,22 @@ class NewCarViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 quoteState = QuoteFetchState.Loading,
+                premiumInitiate = null,
+                premiumProgress = null,
+                premiumQuoteList = null,
                 errorMessage = null
             )
         }
 
         if (!isRetry) {
             sendFormEvent(NewCarUiEvent.NavigateToQuoteLoading)
+        }
+
+        // Registration-number journey: price through premium_initiate using the vahan data
+        val vehicle = vehicleInfo
+        if (vehicle != null) {
+            startPremiumInitiate(state, vehicle)
+            return
         }
 
         val request = CarQuoteRequest(
@@ -1115,6 +1225,7 @@ class NewCarViewModel @Inject constructor(
             registeredOn = state.ownershipType.displayName,
             policyType = state.selectedPolicyType,
             isNewCar = state.entryMode == CarEntryMode.NEW_CAR,
+            make = state.make.ifBlank { "HONDA" },
             makeId = state.makeId.ifBlank { null },
             modelId = state.modelId.ifBlank { null },
             fuelId = state.fuelId.ifBlank { null },
@@ -1197,14 +1308,98 @@ class NewCarViewModel @Inject constructor(
         }
     }
 
+    private fun startPremiumInitiate(state: NewCarUiState, vehicle: VehicleInfoDomain) {
+        val input = state.toPremiumInitiateInput(vehicle.withFormSelections(state))
+        quoteJob = viewModelScope.launch {
+            try {
+                when (val result = repository.premiumInitiate(input)) {
+                    is Resource.Success -> onPremiumInitiated(result.data)
+                    is Resource.Error -> _uiState.update {
+                        it.copy(quoteState = QuoteFetchState.Error(result.message), errorMessage = result.message)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = e.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: "Something went wrong while curating your quotes. Please try again."
+                _uiState.update { it.copy(quoteState = QuoteFetchState.Error(message), errorMessage = message) }
+            }
+        }
+    }
+
+    /**
+     * premium_initiate gave a search reference: stay on the loader while premium_summary is
+     * polled ("x of y insurers responded"), then load premium_list_db and open the results.
+     */
+    private suspend fun onPremiumInitiated(result: PremiumInitiateResult) {
+        _uiState.update { it.copy(premiumInitiate = result, crnNumber = result.crn, premiumProgress = null) }
+
+        val searchReference = result.requestUniqueId
+        if (searchReference.isBlank()) {
+            showQuoteError("We couldn't start your quotes. Please try again.")
+            return
+        }
+
+        val listResult = repository.awaitPremiumQuotes(searchReference) { progress ->
+            _uiState.update { it.copy(premiumProgress = progress) }
+        }
+        when (listResult) {
+            is Resource.Error -> showQuoteError(listResult.message)
+            is Resource.Success -> onPremiumQuotesLoaded(result, listResult.data)
+        }
+    }
+
+    private suspend fun onPremiumQuotesLoaded(initiate: PremiumInitiateResult, list: PremiumQuoteList) {
+        val quotes = list.quotes.mapIndexed { index, quote -> quote.copy(isRecommended = index == 0) }
+        val quoteId = initiate.requestUniqueId
+        _uiState.update {
+            it.copy(
+                quoteState = QuoteFetchState.Success(quoteId = quoteId, quoteUrl = null, quotesCount = quotes.size),
+                crnNumber = list.crn.ifBlank { initiate.crn },
+                premiumProgress = null,
+                premiumQuoteList = list,
+                quotes = quotes,
+                expandedAddOnQuoteIds = quotes.firstOrNull()?.let { quote -> setOf(quote.id) } ?: emptySet(),
+                errorMessage = null
+            )
+        }
+        _quoteLoadingEvent.send(QuoteLoadingUiEvent.NavigateToQuotes(quoteId = quoteId, quoteUrl = null))
+    }
+
+    private fun showQuoteError(message: String) {
+        _uiState.update {
+            it.copy(quoteState = QuoteFetchState.Error(message), premiumProgress = null, errorMessage = message)
+        }
+    }
+
+    /**
+     * The vahan vehicle with any car/RTO the user re-picked on the form; only numeric ids
+     * (real master ids) replace the vahan values.
+     */
+    private fun VehicleInfoDomain.withFormSelections(state: NewCarUiState): VehicleInfoDomain {
+        val formVariantId = state.variantId.takeIf { id -> id.isNotBlank() && id.all { it.isDigit() } }
+        val formRtoId = state.selectedRto?.value?.takeIf { id -> id.isNotBlank() && id.all { it.isDigit() } }
+        return copy(
+            variantId = formVariantId ?: variantId,
+            fuelType = state.fuel.ifBlank { fuelType },
+            rtoCode = formRtoId ?: rtoCode
+        )
+    }
+
     private fun cancelQuoteLoading() {
         quoteJob?.cancel()
         quoteJob = null
+        cancelVehicleLookupJob()
         drainPendingQuoteLoadingEvents()
+
+        initializedMode = null
+        initializedCarNumber = null
 
         _uiState.update {
             it.copy(
                 quoteState = QuoteFetchState.Idle,
+                vehicleLookupState = VehicleLookupState.Idle,
                 errorMessage = null
             )
         }
@@ -1224,7 +1419,7 @@ class NewCarViewModel @Inject constructor(
     }
 
     fun ensureQuotesLoaded() {
-        if (_uiState.value.quotes.isNotEmpty()) return
+        if (_uiState.value.quotes.isNotEmpty() || _uiState.value.premiumInitiate != null) return
 
         if (!AppConfig.USE_DUMMY_DATA) {
             // No real quotes in memory (e.g. restored after process death): never fabricate

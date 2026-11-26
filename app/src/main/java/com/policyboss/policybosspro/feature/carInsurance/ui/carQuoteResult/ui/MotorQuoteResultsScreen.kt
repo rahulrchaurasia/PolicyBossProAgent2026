@@ -1,5 +1,7 @@
 package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.ui
 
+import com.policyboss.policybosspro.ui.theme.titleMediumBold
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +52,7 @@ import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FeedbackDialog
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FilterBottomSheet
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.DeclinedInsurersCard
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.InsurerQuoteCard
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteResultsBottomBar
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteSummaryCard
@@ -175,41 +178,75 @@ fun MotorQuoteResultsScreen(
                     )
                 }
 
+                // premium_initiate succeeded but insurer quotes are not bound yet
+                if (uiState.isAwaitingInsurerQuotes) {
+                    item(key = "awaiting_quotes") {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = AppColors.White,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                text = uiState.awaitingQuotesMessage,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppColors.Slate800,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Recommended Quote Card Section
                 val recommended = uiState.recommendedQuote
                 if (recommended != null) {
                     item(key = "recommended_header") {
                         Spacer(modifier = Modifier.height(12.dp))
-                        // Blue Recommended Badge
-                        Box(
+                        // Blue Recommended badge (left) + "N Plans Found" (right)
+                        Row(
                             modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .clip(
-                                    RoundedCornerShape(
-                                        topStart = 8.dp,
-                                        topEnd = 8.dp,
-                                        bottomEnd = 8.dp,
-                                        bottomStart = 0.dp
-                                    )
-                                )
-                                .background(AppColors.PrimaryBlue)
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.Star,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Recommended",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .clip(
+                                        RoundedCornerShape(
+                                            topStart = 8.dp,
+                                            topEnd = 8.dp,
+                                            bottomEnd = 8.dp,
+                                            bottomStart = 0.dp
+                                        )
+                                    )
+                                    .background(AppColors.PrimaryBlue)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Star,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Recommended",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
+
+                            Text(
+                                text = plansFoundText(uiState.totalQuotesCount),
+                                style = MaterialTheme.typography.titleMediumBold,
+                                color = AppColors.TextPrimary
+                            )
                         }
                     }
 
@@ -284,6 +321,16 @@ fun MotorQuoteResultsScreen(
                                 onAction(NewCarAction.OnPolicyDetailsClick(quote))
                             },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                // Insurers that could not quote (premium_list_db errors)
+                if (uiState.declinedInsurers.isNotEmpty()) {
+                    item(key = "declined_insurers") {
+                        DeclinedInsurersCard(
+                            insurers = uiState.declinedInsurers,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                         )
                     }
                 }
@@ -405,3 +452,6 @@ private fun MotorQuoteResultsScreenPreview() {
     )
 }
 
+/** "1 Plan Found" / "14 Plans Found" for the header above the recommended quote. */
+internal fun plansFoundText(count: Int): String =
+    if (count == 1) "1 Plan Found" else "$count Plans Found"

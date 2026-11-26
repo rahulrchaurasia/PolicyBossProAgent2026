@@ -75,7 +75,10 @@ fun QuoteControlsCard(
     onAdditionalCoverInfoClick: (() -> Unit)? = null,
     onSelectCpaOption: (CpaCoverageOption) -> Unit,
     onCpaOptionInfoClick: (CpaCoverageOption) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** TP-only policies have no car value (IDV) or add-ons, so these rows are hidden. */
+    showCarValue: Boolean = true,
+    showAddons: Boolean = true
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -202,42 +205,45 @@ fun QuoteControlsCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Row 1: Car Value
-                QuoteParameterRow(
-                    label = "Car Value",
-                    value = "₹${MotorQuote.formatIndianCurrency(idvAmount)}",
-                    showInfoIcon = true,
-                    onInfoClick = onIdvInfoClick,
-                    onClick = onIdvClick
-                )
-
-                HorizontalDivider(
-                    color = Color(0xFFE2E8F0).copy(alpha = 0.7f),
-                    thickness = 0.8.dp
-                )
-
-                // Row 2: Addons
-                QuoteParameterRow(
-                    label = "Addons",
-                    value = addonsValue,
-                    showInfoIcon = true,
-                    onInfoClick = onAddonsInfoClick,
-                    onClick = onAddonsClick
-                )
-
-                HorizontalDivider(
-                    color = Color(0xFFE2E8F0).copy(alpha = 0.7f),
-                    thickness = 0.8.dp
-                )
-
-                // Row 3: Additional Cover
-                QuoteParameterRow(
-                    label = "Additional Cover",
-                    value = additionalCoverValue,
-                    showInfoIcon = onAdditionalCoverInfoClick != null,
-                    onInfoClick = onAdditionalCoverInfoClick,
-                    onClick = onAdditionalCoverClick
-                )
+                // Visible rows only; dividers go between rows, never before the first or after the last
+                val rows = buildList<@Composable () -> Unit> {
+                    if (showCarValue) add {
+                        QuoteParameterRow(
+                            label = "Car Value",
+                            value = "₹${MotorQuote.formatIndianCurrency(idvAmount)}",
+                            showInfoIcon = true,
+                            onInfoClick = onIdvInfoClick,
+                            onClick = onIdvClick
+                        )
+                    }
+                    if (showAddons) add {
+                        QuoteParameterRow(
+                            label = "Addons",
+                            value = addonsValue,
+                            showInfoIcon = true,
+                            onInfoClick = onAddonsInfoClick,
+                            onClick = onAddonsClick
+                        )
+                    }
+                    add {
+                        QuoteParameterRow(
+                            label = "Additional Cover",
+                            value = additionalCoverValue,
+                            showInfoIcon = onAdditionalCoverInfoClick != null,
+                            onInfoClick = onAdditionalCoverInfoClick,
+                            onClick = onAdditionalCoverClick
+                        )
+                    }
+                }
+                rows.forEachIndexed { index, row ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            color = Color(0xFFE2E8F0).copy(alpha = 0.7f),
+                            thickness = 0.8.dp
+                        )
+                    }
+                    row()
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -633,5 +639,37 @@ private fun QuoteControlsCardNewCarPreview() {
         onAdditionalCoverInfoClick = {},
         onSelectCpaOption = {},
         onCpaOptionInfoClick = {}
+    )
+}
+
+@Preview(name = "Quote Controls - TP only", showBackground = true)
+@Composable
+private fun QuoteControlsCardInteractivePreviewTp() {
+    var selectedOption by remember { mutableStateOf(CpaCoverageOption.ZEXTRA_SWITCH) }
+
+    QuoteControlsCard(
+        make = "Kia",
+        model = "Seltos",
+        fuel = "Diesel",
+        variantText = "PLUS 1.5 GTX AT (1493 CC)",
+        crnNumber = "12678184",
+        registrationNumber = "RJ 14 CV 0002",
+        isNewCar = false,
+        idvAmount = 986745,
+        addonsCount = 17,
+        addonsValue = "17 Addons",
+        additionalCoverValue = "1 Selected",
+        selectedCpaOption = selectedOption,
+        onVariantClick = {},
+        onIdvClick = {},
+        onIdvInfoClick = {},
+        onAddonsClick = {},
+        onAddonsInfoClick = {},
+        onAdditionalCoverClick = {},
+        onAdditionalCoverInfoClick = {},
+        onSelectCpaOption = { selectedOption = it },
+        onCpaOptionInfoClick = {},
+        showCarValue = false,
+        showAddons = false
     )
 }

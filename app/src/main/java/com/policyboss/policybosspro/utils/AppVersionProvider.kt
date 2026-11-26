@@ -11,9 +11,11 @@ class AppVersionProvider @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     /**
-     * Returns the installed application version string (e.g. "1.0").
+     * Returns the app version sent to the backend, e.g. "policyboss-1.5.6.1".
      */
-    fun getAppVersion(): String {
+    fun getAppVersion(): String = format(versionName())
+
+    private fun versionName(): String {
         return try {
             BuildConfig.VERSION_NAME
         } catch (_: Throwable) {
@@ -25,6 +27,13 @@ class AppVersionProvider @Inject constructor(
                 "1.0.0"
             }
         }
+    }
+
+    companion object {
+        private const val PREFIX = "policyboss-"
+
+        /** `1.5.6.1` -> `policyboss-1.5.6.1`. */
+        fun format(versionName: String): String = "$PREFIX$versionName"
     }
 }
 

@@ -143,7 +143,7 @@ fun NewCarScreen(
                         .padding(horizontal = 20.dp, vertical = 16.dp)
                 ) {
                     PrimaryCTAButton(
-                        text = if (uiState.isLoading) "Processing..." else "Get quotes",
+                        text = if (uiState.isLoading) "Processing..." else "View quotes",
                         onClick = { onAction(NewCarAction.OnGetQuotesClick) },
                         enabled = uiState.isFormValid && !uiState.isLoading,
                         containerColor = AppColors.PrimaryBlue,
@@ -299,12 +299,18 @@ fun NewCarScreen(
                         selectedInsurer = uiState.selectedInsurer,
                         insurerOptions = uiState.insurerOptions,
                         onInsurerSelected = { onAction(NewCarAction.OnInsurerSelected(it)) },
-                        onInsurerClick = { activeBottomSheet = CarInsuranceBottomSheet.INSURER },
+                        onInsurerClick = {
+                            onAction(NewCarAction.OnInsurerSheetOpened)
+                            activeBottomSheet = CarInsuranceBottomSheet.INSURER
+                        },
                         shouldShowTpInsurer = uiState.shouldShowTpInsurer,
                         selectedTpInsurer = uiState.selectedTpInsurer,
                         tpInsurerOptions = uiState.tpInsurerOptions,
                         onTpInsurerSelected = { onAction(NewCarAction.OnTpInsurerSelected(it)) },
-                        onTpInsurerClick = { activeBottomSheet = CarInsuranceBottomSheet.TP_INSURER },
+                        onTpInsurerClick = {
+                            onAction(NewCarAction.OnInsurerSheetOpened)
+                            activeBottomSheet = CarInsuranceBottomSheet.TP_INSURER
+                        },
                         shouldShowCard = uiState.shouldShowExistingPolicyCard,
                         shouldShowClaimAndNcb = uiState.shouldShowClaimAndNcb,
                         claimAndNcbContent = {

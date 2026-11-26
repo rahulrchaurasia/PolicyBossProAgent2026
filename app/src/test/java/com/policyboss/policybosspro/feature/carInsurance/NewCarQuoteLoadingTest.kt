@@ -9,9 +9,13 @@ import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumInitiateInput
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumInitiateResult
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteFetchState
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteLoadingUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumProgress
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuoteList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,6 +58,15 @@ class NewCarQuoteLoadingTest {
             handler(request)
     }
 
+    /** Car-number journey: quotes are started through premium_initiate. */
+    private fun premiumRepository(
+        quotes: suspend (String) -> Resource<PremiumQuoteList> = { Resource.Success(samplePremiumQuoteList(it)) },
+        handler: suspend (PremiumInitiateInput) -> Resource<PremiumInitiateResult>
+    ): FakeCarInsuranceRepository = object : FakeCarInsuranceRepository(premium = handler, premiumQuotes = quotes) {
+        override suspend fun getCarQuotes(request: CarQuoteRequest): Resource<CarQuoteResponse> =
+            error("car-number journey must not call getCarQuotes")
+    }
+
     @Test
     fun `displayCustomerFirstName extracts first token and handles blank gracefully`() {
         assertEquals("Dhruvi", NewCarUiState(customerName = "  Dhruvi   Shah ").displayCustomerFirstName)
@@ -76,10 +89,10 @@ class NewCarQuoteLoadingTest {
 
     @Test
     fun `get quotes navigates to loading screen and only navigates to results after API succeeds`() = runTest {
-        val deferred = CompletableDeferred<Resource<CarQuoteResponse>>()
+        val deferred = CompletableDeferred<Resource<PremiumInitiateResult>>()
         var callCount = 0
         val vm = NewCarViewModel(
-            fakeRepository {
+            premiumRepository {
                 callCount++
                 deferred.await()
             }
@@ -110,25 +123,17 @@ class NewCarQuoteLoadingTest {
         assertEquals(1, formEvents.size)
 
         // Complete API successfully
-        deferred.complete(
-            Resource.Success(
-                CarQuoteResponse(
-                    status = "SUCCESS",
-                    quoteId = "Q-101",
-                    quoteUrl = "https://www.policyboss.com/quotes/Q-101",
-                    quotesCount = 12
-                )
-            )
-        )
+        deferred.complete(Resource.Success(samplePremiumInitiateResult("11380101")))
         advanceUntilIdle()
 
         val successState = vm.uiState.value.quoteState as? QuoteFetchState.Success
         assertNotNull(successState)
-        assertEquals("Q-101", successState?.quoteId)
-        assertEquals(12, successState?.quotesCount)
+        assertEquals("SRN-11380101", successState?.quoteId)
+        assertEquals("11380101", vm.uiState.value.crnNumber)
+        assertNotNull(vm.uiState.value.premiumInitiate)
         assertFalse(vm.uiState.value.isLoading)
         assertEquals(
-            listOf(QuoteLoadingUiEvent.NavigateToQuotes("Q-101", "https://www.policyboss.com/quotes/Q-101")),
+            listOf(QuoteLoadingUiEvent.NavigateToQuotes("SRN-11380101", null)),
             loadingEvents
         )
 
@@ -145,19 +150,12 @@ class NewCarQuoteLoadingTest {
     fun `API failure transitions to Error state and retry recovers without duplicate loading navigation`() = runTest {
         var attempt = 0
         val vm = NewCarViewModel(
-            fakeRepository {
+            premiumRepository {
                 attempt++
                 if (attempt == 1) {
                     Resource.Error("Quote service temporarily unavailable")
                 } else {
-                    Resource.Success(
-                        CarQuoteResponse(
-                            status = "SUCCESS",
-                            quoteId = "Q-RETRY-2",
-                            quoteUrl = "https://www.policyboss.com/quotes/Q-RETRY-2",
-                            quotesCount = 6
-                        )
-                    )
+                    Resource.Success(samplePremiumInitiateResult("2"))
                 }
             }
         )
@@ -185,7 +183,7 @@ class NewCarQuoteLoadingTest {
         assertEquals(2, attempt)
         assertEquals(1, formEvents.count { it is NewCarUiEvent.NavigateToQuoteLoading })
         assertEquals(
-            listOf(QuoteLoadingUiEvent.NavigateToQuotes("Q-RETRY-2", "https://www.policyboss.com/quotes/Q-RETRY-2")),
+            listOf(QuoteLoadingUiEvent.NavigateToQuotes("SRN-2", null)),
             loadingEvents
         )
 
@@ -195,8 +193,8 @@ class NewCarQuoteLoadingTest {
 
     @Test
     fun `cancelling quote loading cancels in-flight request, resets to Idle, and closes loading screen`() = runTest {
-        val deferred = CompletableDeferred<Resource<CarQuoteResponse>>()
-        val vm = NewCarViewModel(fakeRepository { deferred.await() })
+        val deferred = CompletableDeferred<Resource<PremiumInitiateResult>>()
+        val vm = NewCarViewModel(premiumRepository { deferred.await() })
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -216,14 +214,89 @@ class NewCarQuoteLoadingTest {
         assertEquals(listOf(QuoteLoadingUiEvent.CloseLoading), loadingEvents)
 
         // Late completion after cancellation must not trigger quote navigation
-        deferred.complete(
-            Resource.Success(CarQuoteResponse(status = "SUCCESS", quoteId = "LATE", quoteUrl = "https://example.com"))
-        )
+        deferred.complete(Resource.Success(samplePremiumInitiateResult("LATE")))
         advanceUntilIdle()
         assertEquals(QuoteFetchState.Idle, vm.uiState.value.quoteState)
         assertEquals(listOf(QuoteLoadingUiEvent.CloseLoading), loadingEvents)
 
         loadingJob.cancel()
+    }
+
+    @Test
+    fun `car-number journey sends vahan vehicle and form choices to premium_initiate`() = runTest {
+        val repo = premiumRepository { Resource.Success(samplePremiumInitiateResult()) }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        val input = repo.premiumInitiateInputs.single()
+        assertEquals("RJ14-1234", input.vehicle.registrationNumber)
+        assertEquals("PRIYANKA VYAS", input.customerName)
+        assertTrue(vm.uiState.value.quoteState is QuoteFetchState.Success)
+
+        // Results screen must not bounce back while the premium_initiate result is held
+        val formEvents = mutableListOf<NewCarUiEvent>()
+        val formJob = launch { vm.uiEvent.collect { formEvents.add(it) } }
+        vm.ensureQuotesLoaded()
+        advanceUntilIdle()
+        assertFalse(formEvents.any { it is NewCarUiEvent.NavigateBackToForm })
+        formJob.cancel()
+    }
+
+    @Test
+    fun `premium_initiate search reference loads insurer quotes before opening results`() = runTest {
+        val repo = premiumRepository { Resource.Success(samplePremiumInitiateResult("11380101")) }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
+        val loadingJob = launch { vm.quoteLoadingEvent.collect { loadingEvents.add(it) } }
+
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(listOf("SRN-11380101"), repo.premiumQuoteSearches)
+        assertEquals(listOf("ARN-IFFCO", "ARN-BAJAJ"), state.quotes.map { it.id })
+        assertTrue("cheapest quote is recommended", state.quotes.first().isRecommended)
+        assertEquals("ARN-IFFCO", state.recommendedQuote?.id)
+        assertEquals(2471, state.minPremium)
+        assertEquals(listOf("Future Generali"), state.declinedInsurers.map { it.insurerName })
+        assertFalse(state.isAwaitingInsurerQuotes)
+        assertEquals(null, state.premiumProgress)
+        assertEquals(listOf(QuoteLoadingUiEvent.NavigateToQuotes("SRN-11380101", null)), loadingEvents)
+        loadingJob.cancel()
+    }
+
+    @Test
+    fun `premium_list_db failure shows the loader error and does not open results`() = runTest {
+        val repo = premiumRepository(quotes = { Resource.Error("Unable to fetch quotes (500). Please try again.") }) {
+            Resource.Success(samplePremiumInitiateResult())
+        }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
+        val loadingJob = launch { vm.quoteLoadingEvent.collect { loadingEvents.add(it) } }
+
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        assertEquals(
+            QuoteFetchState.Error("Unable to fetch quotes (500). Please try again."),
+            vm.uiState.value.quoteState
+        )
+        assertTrue(loadingEvents.none { it is QuoteLoadingUiEvent.NavigateToQuotes })
+        loadingJob.cancel()
+    }
+
+    @Test
+    fun `premium progress text counts answered insurers`() {
+        val state = NewCarUiState(premiumProgress = PremiumProgress(status = "pending", total = 18, pending = 12))
+        assertEquals("6 of 18 insurers responded", state.premiumProgressText)
+        assertEquals(null, NewCarUiState().premiumProgressText)
     }
 
     @Test
@@ -298,6 +371,25 @@ class NewCarQuoteLoadingTest {
 
         assertEquals("Mar", vm.uiState.value.manufacturingMonth)
         assertEquals("2023", vm.uiState.value.manufacturingYear)
+    }
+
+    @Test
+    fun `cancelling quote loading allows re-entry from Home with same registration number without blocking`() = runTest {
+        val vm = NewCarViewModel(fakeRepository { Resource.Success(CarQuoteResponse()) })
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // User cancels on loading screen
+        vm.onAction(NewCarAction.OnCancelQuoteLoading)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(QuoteFetchState.Idle, vm.uiState.value.quoteState)
+
+        // Re-entering from Home with same registration number
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("RJ14-1234", vm.uiState.value.registrationNumber)
     }
 }
 

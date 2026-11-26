@@ -110,6 +110,21 @@ data class VehicleInfoResponseDto(
     @SerialName("Vehicle_Detail_Id")
     @Serializable(with = LenientNullableStringSerializer::class)
     val vehicleDetailId: String? = null,
+    @SerialName("Chassis_Number")
+    @Serializable(with = LenientNullableStringSerializer::class)
+    val chassisNumber: String? = null,
+    @SerialName("Engin_Number")
+    @Serializable(with = LenientNullableStringSerializer::class)
+    val engineNumber: String? = null,
+    @SerialName("Permanent_Pincode")
+    @Serializable(with = LenientNullableStringSerializer::class)
+    val permanentPincode: String? = null,
+    @SerialName("Vahan_CC_Slab")
+    @Serializable(with = LenientNullableStringSerializer::class)
+    val vahanCcSlab: String? = null,
+    @SerialName("Source")
+    @Serializable(with = LenientNullableStringSerializer::class)
+    val source: String? = null,
     @SerialName("FastlaneResponse_Obj")
     @Serializable(with = LenientFastlaneResponseObjSerializer::class)
     val fastlaneResponse: FastlaneResponseObjDto? = null,
@@ -143,6 +158,9 @@ data class FastlaneResponseObjDto(
     @SerialName("manufacturing_date")
     @Serializable(with = LenientNullableStringSerializer::class)
     val manufacturingDate: String? = null,
+    @SerialName("manufacturing_date_formatted")
+    @Serializable(with = LenientNullableStringSerializer::class)
+    val manufacturingDateFormatted: String? = null,
     @SerialName("insurance_company")
     @Serializable(with = LenientNullableStringSerializer::class)
     val insuranceCompany: String? = null,

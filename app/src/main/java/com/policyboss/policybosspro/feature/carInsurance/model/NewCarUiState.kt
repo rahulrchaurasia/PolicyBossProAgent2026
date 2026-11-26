@@ -52,6 +52,17 @@ sealed interface ModelListState {
     data class Error(val message: String) : ModelListState
 }
 
+/**
+ * Lifecycle of beta_GetFuelVariant for the Make/Model chosen in the sheet.
+ */
+@Immutable
+sealed interface FuelVariantState {
+    data object Idle : FuelVariantState
+    data object Loading : FuelVariantState
+    data object Success : FuelVariantState
+    data class Error(val message: String) : FuelVariantState
+}
+
 enum class CpaCoverageOption {
     ZEXTRA_SWITCH,
     INSURER_CPA,
@@ -87,9 +98,10 @@ data class NewCarUiState(
     // Existing Policy Section (For rollover / non-new car)
     val hasExistingPolicy: Boolean = true,
     val selectedInsurer: DropdownOption<String>? = null,
-    val insurerOptions: List<DropdownOption<String>> = CarInsuranceData.insurerOptions,
+    /** Previous-insurer master list from insurers/getPrevInsurer/1 (empty until loaded). */
+    val insurerOptions: List<DropdownOption<String>> = emptyList(),
     val selectedTpInsurer: DropdownOption<String>? = null,
-    val tpInsurerOptions: List<DropdownOption<String>> = CarInsuranceData.insurerOptions,
+    val tpInsurerOptions: List<DropdownOption<String>> = emptyList(),
     val policyExpiryDate: String = "",
 
     // Car Specs
@@ -121,6 +133,13 @@ data class NewCarUiState(
     val brandModels: List<CarBrandModelItem> = emptyList(),
     val modelListState: ModelListState = ModelListState.Idle,
     val vehicleLookupState: VehicleLookupState = VehicleLookupState.Idle,
+    val fuelVariantState: FuelVariantState = FuelVariantState.Idle,
+    val fuelVariantCatalog: FuelVariantCatalog? = null,
+
+    // Selected variant details (from beta_GetFuelVariant / vehicle_info_user)
+    val cubicCapacity: String = "",
+    val seatingCapacity: String = "",
+    val exShowroomPrice: String = "",
 
     // Dates
     val registrationDate: String = "",
@@ -171,7 +190,14 @@ data class NewCarUiState(
     val showVariantSheet: Boolean = false,
     val infoDialogTitle: String? = null,
     val infoDialogMessage: String? = null,
-    val selectedPolicyDetailQuote: MotorQuote? = null
+    val selectedPolicyDetailQuote: MotorQuote? = null,
+
+    // premium_initiate -> premium_summary -> premium_list_db (registration-number journey)
+    val premiumInitiate: PremiumInitiateResult? = null,
+    /** Latest premium_summary while insurers are still answering; null when not polling. */
+    val premiumProgress: PremiumProgress? = null,
+    /** Insurer quotes from premium_list_db; [quotes] holds the same plans for the list UI. */
+    val premiumQuoteList: PremiumQuoteList? = null
 ) {
     val isLoading: Boolean
         get() = quoteState is QuoteFetchState.Loading
@@ -227,13 +253,9 @@ data class NewCarUiState(
 
     val formattedCarDetails: String
         get() {
-            if (make.isBlank() && model.isBlank() && fuel.isBlank() && variant.isBlank()) {
-                return carDetailsSummary.ifBlank { "" }
-            }
-            // Vahan-fetched vehicles keep the API summary (e.g. "MARUTI-WAGON R-VXI+-PETROL- (998 CC)")
-            if (entryMode == CarEntryMode.WITH_CAR_NUMBER && carDetailsSummary.isNotBlank()) {
-                return carDetailsSummary
-            }
+            // "MARUTI-WAGON R-1.0 LXI ABS-PETROL- (998 CC)" from the lookup or the sheet
+            if (carDetailsSummary.isNotBlank()) return carDetailsSummary
+            if (make.isBlank() && model.isBlank() && fuel.isBlank() && variant.isBlank()) return ""
             val parts = listOf(make, model, fuel, variant).filter { it.isNotBlank() }
             return parts.joinToString(", ").uppercase()
         }
@@ -263,37 +285,78 @@ data class NewCarUiState(
             }
         }
 
+    /** The car currently on the form, highlighted in step 1 when the sheet opens. */
+    val committedBrandModel: CarBrandModelItem?
+        get() {
+            if (model.isBlank()) return null
+            return brandModels.firstOrNull { it.modelId.equals(modelId, ignoreCase = true) }
+                ?: CarBrandModelItem(makeId.ifBlank { make }, make, modelId.ifBlank { model }, model)
+        }
+
+    private val isEditingCommittedModel: Boolean
+        get() = model.isNotBlank() && (draftBrandModel == null || draftBrandModel.modelId.equals(modelId, ignoreCase = true))
+
+    /** Highlights: the draft choice, else the committed one while the same car is being edited. */
+    val highlightedBrandModel: CarBrandModelItem?
+        get() = draftBrandModel ?: committedBrandModel
+
+    val highlightedFuel: String?
+        get() = draftFuel ?: fuel.takeIf { isEditingCommittedModel && it.isNotBlank() }
+
+    val highlightedVariant: CarVariantItem?
+        get() = draftVariant ?: if (isEditingCommittedModel && variant.isNotBlank() &&
+            (draftFuel == null || draftFuel.equals(fuel, ignoreCase = true))
+        ) {
+            filteredVariants.firstOrNull { it.variantId.equals(variantId, ignoreCase = true) }
+        } else {
+            null
+        }
+
+    /** Model whose fuels/variants the sheet is showing (draft selection, else committed). */
+    val sheetModelId: String
+        get() = draftBrandModel?.modelId ?: modelId
+
+    /** Live catalogue for [sheetModelId], or null while it is not loaded. */
+    val activeFuelVariantCatalog: FuelVariantCatalog?
+        get() = fuelVariantCatalog?.takeIf { it.modelId.equals(sheetModelId, ignoreCase = true) }
+
     val filteredFuelTypes: List<String>
         get() {
-            val baseFuels = CarInsuranceData.fuelTypes
-            if (sheetSearchQuery.isBlank()) return baseFuels
+            val fuels = activeFuelVariantCatalog?.selectableFuels.orEmpty()
+            if (sheetSearchQuery.isBlank()) return fuels
             val query = sheetSearchQuery.trim().lowercase()
-            return baseFuels.filter { it.lowercase().contains(query) }
+            return fuels.filter { it.lowercase().contains(query) }
         }
 
     val filteredVariants: List<CarVariantItem>
         get() {
-            val mId = draftBrandModel?.makeId ?: makeId.ifBlank { make }
-            val modId = draftBrandModel?.modelId ?: modelId.ifBlank { model }
-            val f = draftFuel ?: this.fuel
-            val catalogueVariants = CarInsuranceData.getVariantsFor(mId, modId, f)
-            // Keep the committed (e.g. vahan-fetched) variant selectable for the same Make + Model
-            val isCommittedVehicle = (draftBrandModel == null ||
-                    draftBrandModel.modelId.equals(modelId, ignoreCase = true)) &&
+            val selectedFuel = draftFuel ?: fuel
+            val catalogueVariants = activeFuelVariantCatalog?.variantsFor(selectedFuel).orEmpty()
+            // Keep the committed (e.g. vahan-fetched) variant selectable for the same Make + Model + Fuel
+            val isCommittedVehicle = sheetModelId.equals(modelId, ignoreCase = true) &&
                     (draftFuel == null || draftFuel.equals(fuel, ignoreCase = true))
             val committedVariant = if (isCommittedVehicle && variant.isNotBlank() &&
                 catalogueVariants.none {
                     it.variantId.equals(variantId, ignoreCase = true) || it.variantName.equals(variant, ignoreCase = true)
                 }
             ) {
-                CarVariantItem(variantId = variantId.ifBlank { variant }, variantName = variant, fuelType = fuel)
+                CarVariantItem(
+                    variantId = variantId.ifBlank { variant },
+                    variantName = variant,
+                    fuelType = fuel,
+                    modelId = modelId,
+                    fuelId = fuelId,
+                    cubicCapacity = cubicCapacity,
+                    seatingCapacity = seatingCapacity,
+                    exShowroomPrice = exShowroomPrice
+                )
             } else {
                 null
             }
             val allVariants = listOfNotNull(committedVariant) + catalogueVariants
             if (sheetSearchQuery.isBlank()) return allVariants
             val query = sheetSearchQuery.trim().lowercase()
-            return allVariants.filter { it.variantName.lowercase().contains(query) }
+            return allVariants.filter { it.displayLabel.lowercase().contains(query) }
         }
 
     val isFormValid: Boolean
@@ -330,13 +393,15 @@ data class NewCarUiState(
     val totalQuotesCount: Int
         get() = quotes.size.takeIf { it > 0 }
             ?: (quoteState as? QuoteFetchState.Success)?.quotesCount
-            ?: 8
+            ?: if (premiumInitiate != null) 0 else 8
 
     val minPremium: Int
-        get() = quotes.minOfOrNull { it.effectivePremium(isZextraBundleEnabled) } ?: 6403
+        get() = quotes.minOfOrNull { it.effectivePremium(isZextraBundleEnabled) }
+            ?: if (premiumInitiate != null) 0 else 6403
 
     val maxEarnings: Int
-        get() = quotes.maxOfOrNull { it.effectiveEarnings(isZextraBundleEnabled) } ?: 1403
+        get() = quotes.maxOfOrNull { it.effectiveEarnings(isZextraBundleEnabled) }
+            ?: if (premiumInitiate != null) 0 else 1403
 
     val recommendedQuote: MotorQuote?
         get() = sortedQuotes.firstOrNull { it.isRecommended } ?: sortedQuotes.firstOrNull()
@@ -377,12 +442,66 @@ data class NewCarUiState(
             }
         }
 
+    // ----- Quote filter: TP-only shows Additional Cover alone -----
+
+    val isTpOnlyFilter: Boolean
+        get() = policyType == PolicyType.TP_ONLY
+
+    /** Filter categories for the selected policy type. */
+    val availableFilterCategories: List<FilterCategory>
+        get() = if (isTpOnlyFilter) listOf(FilterCategory.ADDITIONAL_COVER) else FilterCategory.entries
+
+    /** The left rail is pointless with a single category. */
+    val showFilterCategoryRail: Boolean
+        get() = availableFilterCategories.size > 1
+
+    /** Electrical / Non-Electrical accessories are own-damage covers. */
+    val showAccessoriesFilter: Boolean
+        get() = !isTpOnlyFilter
+
+    /** Apply-button count for the draft filter, limited to what the screen shows. */
+    val draftFilterCount: Int
+        get() = draftQuoteFilter.activeFilterCount(additionalCoverOnly = isTpOnlyFilter)
+
+    /** [category] if it is available for this policy type, else the first available one. */
+    fun coerceFilterCategory(category: FilterCategory): FilterCategory =
+        category.takeIf { it in availableFilterCategories } ?: availableFilterCategories.first()
+
+    /** premium_initiate succeeded but no insurer returned a plan. */
+    val isAwaitingInsurerQuotes: Boolean
+        get() = premiumInitiate != null && quotes.isEmpty()
+
+    val awaitingQuotesMessage: String
+        get() {
+            val crn = premiumQuoteList?.crn?.ifBlank { null } ?: premiumInitiate?.crn.orEmpty()
+            val prefix = if (crn.isNotBlank()) "CRN $crn: " else ""
+            val declined = premiumQuoteList?.declinedInsurers.orEmpty().size
+            return prefix + if (declined > 0) {
+                "none of the $declined insurers could quote this vehicle."
+            } else {
+                "no insurer quotes are available for this vehicle."
+            }
+        }
+
+    /** Insurers that answered without a plan (underwriting restriction, errors). */
+    val declinedInsurers: List<DeclinedInsurer>
+        get() = premiumQuoteList?.declinedInsurers.orEmpty()
+
+    /** Loader sub-text while premium_summary is being polled, e.g. "6 of 18 insurers responded". */
+    val premiumProgressText: String?
+        get() = premiumProgress?.takeIf { it.total > 0 }?.let { progress ->
+            val answered = (progress.total - progress.pending).coerceIn(0, progress.total)
+            "$answered of ${progress.total} insurers responded"
+        }
+
     val vehicleSummaryText: String
         get() {
             val modelName = selectedModel?.label ?: "Kia Seltos"
             val fuelName = selectedFuel?.label ?: "Diesel"
             val variantName = selectedVariant?.label ?: "Plus 1.5 GTX AT (1493CC)"
             val policyName = if (selectedPolicyType.isNotBlank()) selectedPolicyType else "Comprehensive"
+            // NCB does not apply to a third-party-only policy
+            if (isTpOnlyFilter) return "$modelName • $fuelName • $variantName • $policyName"
             val ncbText = selectedNcb?.label ?: "0%"
             return "$modelName • $fuelName • $variantName • $policyName • NCB status: $ncbText"
         }

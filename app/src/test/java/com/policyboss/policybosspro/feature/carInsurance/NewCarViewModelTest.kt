@@ -346,20 +346,31 @@ class NewCarViewModelTest {
     }
 
     @Test
-    fun `openCarDetailsSheet with prefilled vehicle in WITH_CAR_NUMBER opens at Stage 3 VARIANT with draft prefilled`() {
+    fun `openCarDetailsSheet with prefilled vehicle starts at step 1 with current car highlighted and strict stepper`() {
         val vm = NewCarViewModel(fakeRepository())
         vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
         testDispatcher.scheduler.advanceUntilIdle()
 
         vm.onAction(NewCarAction.OpenCarDetailsSheet)
+        testDispatcher.scheduler.advanceUntilIdle()
 
         val state = vm.uiState.value
         assertTrue(state.isCarDetailsSheetOpen)
-        assertEquals(CarDetailsStep.VARIANT, state.sheetStep)
-        assertEquals("KIA", state.draftBrandModel?.makeId)
-        assertEquals("SELTOS", state.draftBrandModel?.modelId)
-        assertEquals("DIESEL", state.draftFuel)
-        assertEquals("SELTOS_PLUS_1.5_GTX_AT", state.draftVariant?.variantId)
+        assertEquals(CarDetailsStep.MAKE_MODEL, state.sheetStep)
+        assertNull(state.draftBrandModel)
+        assertEquals("SELTOS", state.highlightedBrandModel?.modelId)
+        assertEquals("DIESEL", state.highlightedFuel)
+        assertEquals("SELTOS_PLUS_1.5_GTX_AT", state.highlightedVariant?.variantId)
+
+        // Strict 1 -> 2 -> 3: steps 2 and 3 stay locked until chosen in this sheet
+        vm.onAction(NewCarAction.OnSheetStepClick(CarDetailsStep.FUEL))
+        vm.onAction(NewCarAction.OnSheetStepClick(CarDetailsStep.VARIANT))
+        assertEquals(CarDetailsStep.MAKE_MODEL, vm.uiState.value.sheetStep)
+
+        vm.onAction(NewCarAction.OnDraftBrandModelSelected(state.highlightedBrandModel!!))
+        assertEquals(CarDetailsStep.FUEL, vm.uiState.value.sheetStep)
+        vm.onAction(NewCarAction.OnSheetStepClick(CarDetailsStep.VARIANT))
+        assertEquals(CarDetailsStep.FUEL, vm.uiState.value.sheetStep)
     }
 
     @Test
@@ -430,7 +441,7 @@ class NewCarViewModelTest {
         assertEquals("PETROL", state.fuel)
         assertEquals("1.4 SX (O) DCT TURBO (1353CC)", state.variant)
         assertEquals("CRETA_1.4_SX_O_DCT_TURBO", state.variantId)
-        assertEquals("HYUNDAI, CRETA, PETROL, 1.4 SX (O) DCT TURBO (1353CC)", state.formattedCarDetails)
+        assertEquals("HYUNDAI-CRETA-1.4 SX (O) DCT TURBO (1353CC)-PETROL", state.formattedCarDetails)
         assertEquals("CRETA", state.selectedModel?.value)
         assertEquals("CRETA_1.4_SX_O_DCT_TURBO", state.selectedVariant?.value)
     }
@@ -504,6 +515,7 @@ class NewCarViewModelTest {
         vm.initForMode(entryMode = CarEntryMode.WITHOUT_CAR_NUMBER)
         testDispatcher.scheduler.advanceUntilIdle()
         vm.onAction(NewCarAction.OpenCarDetailsSheet)
+        testDispatcher.scheduler.advanceUntilIdle()
 
         // Search brand models
         vm.onAction(NewCarAction.OnSheetSearchQueryChange("creta"))
@@ -513,6 +525,7 @@ class NewCarViewModelTest {
 
         // Advance to fuel stage
         vm.onAction(NewCarAction.OnDraftBrandModelSelected(filteredBrands.first()))
+        testDispatcher.scheduler.advanceUntilIdle() // beta_GetFuelVariant
         vm.onAction(NewCarAction.OnSheetSearchQueryChange("cng"))
         val filteredFuels = vm.uiState.value.filteredFuelTypes
         assertTrue(filteredFuels.all { it.lowercase().contains("cng") })

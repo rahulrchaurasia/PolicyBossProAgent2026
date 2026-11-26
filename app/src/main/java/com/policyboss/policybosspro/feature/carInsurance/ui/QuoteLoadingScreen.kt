@@ -82,6 +82,7 @@ fun QuoteLoadingRoute(
     viewModel: NewCarViewModel,
     onCloseLoading: () -> Unit,
     onNavigateToQuotes: (quoteId: String, quoteUrl: String?) -> Unit,
+    onBackToForm: () -> Unit = onCloseLoading,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -89,6 +90,7 @@ fun QuoteLoadingRoute(
 
     BackHandler {
         viewModel.onAction(NewCarAction.OnCancelQuoteLoading)
+        onCloseLoading()
     }
 
     ObserveAsEvents(flow = viewModel.quoteLoadingEvent) { event ->
@@ -111,8 +113,16 @@ fun QuoteLoadingRoute(
     QuoteLoadingScreen(
         customerFirstName = uiState.displayCustomerFirstName,
         quoteState = uiState.quoteState,
-        onCloseClick = { viewModel.onAction(NewCarAction.OnCancelQuoteLoading) },
+        progressText = uiState.premiumProgressText,
+        onCloseClick = {
+            viewModel.onAction(NewCarAction.OnCancelQuoteLoading)
+            onCloseLoading()
+        },
         onRetryClick = { viewModel.onAction(NewCarAction.OnRetryGetQuotes) },
+        onSecondaryClick = {
+            viewModel.onAction(NewCarAction.OnCancelQuoteLoading)
+            onBackToForm()
+        },
         modifier = modifier
     )
 }
@@ -126,8 +136,11 @@ fun QuoteLoadingScreen(
     modifier: Modifier = Modifier,
     title: String? = null,
     errorTitle: String = "Unable to fetch quotes",
-    secondaryActionLabel: String = "Back to form",
+    /** Text button under "Try again"; null hides it. */
+    secondaryActionLabel: String? = "Back to form",
     progressDescription: String = "Curating car insurance quotes",
+    /** Live insurer progress, e.g. "6 of 18 insurers responded"; null shows the default text. */
+    progressText: String? = null,
     onSecondaryClick: (() -> Unit)? = null
 ) {
     val headingText = title ?: if (customerFirstName.isNotBlank()) {
@@ -223,7 +236,7 @@ fun QuoteLoadingScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "Please be patient...",
+                            text = progressText ?: "Please be patient...",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,
                             color = AppColors.TextSecondary,
@@ -258,7 +271,7 @@ fun QuoteLoadingScreen(
 private fun QuoteLoadingErrorContent(
     errorTitle: String,
     errorMessage: String,
-    secondaryActionLabel: String,
+    secondaryActionLabel: String?,
     onRetryClick: () -> Unit,
     onSecondaryClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -314,15 +327,17 @@ private fun QuoteLoadingErrorContent(
             contentColor = AppColors.White
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        if (secondaryActionLabel != null) {
+            Spacer(modifier = Modifier.height(8.dp))
 
-        TextButton(onClick = onSecondaryClick) {
-            Text(
-                text = secondaryActionLabel,
-                color = AppColors.TextSecondary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
+            TextButton(onClick = onSecondaryClick) {
+                Text(
+                    text = secondaryActionLabel,
+                    color = AppColors.TextSecondary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }

@@ -44,12 +44,12 @@ class MotorPolicyDetailTest {
         assertEquals("20%", breakup.vehicleInfo.newNcb)
 
         // Verify Base Cover
-        assertEquals("Base Cover", breakup.baseCoverGroup.categoryCaption)
-        assertEquals("Own Damage Premium (A)", breakup.baseCoverGroup.title)
-        assertEquals(298, breakup.baseCoverGroup.totalAmount)
-        assertEquals("₹298", breakup.baseCoverGroup.formattedTotalAmount)
-        assertNotNull(breakup.baseCoverGroup.standaloneItem)
-        assertEquals("No Claim Bonus", breakup.baseCoverGroup.standaloneItem?.label)
+        assertEquals("Base Cover", breakup.baseCoverGroup!!.categoryCaption)
+        assertEquals("Own Damage Premium (A)", breakup.baseCoverGroup!!.title)
+        assertEquals(298, breakup.baseCoverGroup!!.totalAmount)
+        assertEquals("₹298", breakup.baseCoverGroup!!.formattedTotalAmount)
+        assertNotNull(breakup.baseCoverGroup!!.standaloneItem)
+        assertEquals("No Claim Bonus", breakup.baseCoverGroup!!.standaloneItem?.label)
 
         // Verify Third Party Cover
         assertEquals("Third Party Cover", breakup.thirdPartyGroup.categoryCaption)
@@ -63,9 +63,9 @@ class MotorPolicyDetailTest {
         assertEquals(400, breakup.bundleGroup.totalAmount)
 
         // Verify Addons
-        assertEquals("Addons", breakup.addonGroup.categoryCaption)
-        assertEquals("Addon Details", breakup.addonGroup.title)
-        assertEquals(701, breakup.addonGroup.totalAmount)
+        assertEquals("Addons", breakup.addonGroup!!.categoryCaption)
+        assertEquals("Addon Details", breakup.addonGroup!!.title)
+        assertEquals(701, breakup.addonGroup!!.totalAmount)
 
         // Verify Taxes
         assertEquals("Taxes", breakup.taxesGroup.categoryCaption)

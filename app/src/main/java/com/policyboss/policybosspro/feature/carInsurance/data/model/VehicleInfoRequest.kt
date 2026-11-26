@@ -1,19 +1,20 @@
 package com.policyboss.policybosspro.feature.carInsurance.data.model
 
+import com.policyboss.policybosspro.core.network.NetworkConstants
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
  * Request body for `POST quote/vehicle_info_user` (registration number → vahan lookup).
  *
- * secret_key, client_key and session_id are fixed constants sent as-is in the body.
+ * Uses centralized security credentials defined in [NetworkConstants].
  */
 @Serializable
 data class VehicleInfoRequest(
     @SerialName("secret_key")
-    val secretKey: String = SECRET_KEY,
+    val secretKey: String = NetworkConstants.SECRET_KEY,
     @SerialName("client_key")
-    val clientKey: String = CLIENT_KEY,
+    val clientKey: String = NetworkConstants.CLIENT_KEY,
     @SerialName("RegistrationNumber")
     val registrationNumber: String,
     @SerialName("product_id")
@@ -23,15 +24,17 @@ data class VehicleInfoRequest(
     @SerialName("source")
     val source: String = SOURCE,
     @SerialName("session_id")
-    val sessionId: String = SESSION_ID,
+    val sessionId: String = NetworkConstants.SESSION_ID,
     @SerialName("g-recaptcha-response")
     val recaptchaResponse: String = ""
 ) {
     companion object {
         const val CAR_PRODUCT_ID = 1
         const val SOURCE = "PB-BETA"
-        const val SECRET_KEY = "SECRET-HZ07QRWY-JIBT-XRMQ-ZP95-J0RWP3DYRACW"
-        const val CLIENT_KEY = "CLIENT-CNTP6NYE-CU9N-DUZW-CSPI-SH1IS4DOVHB9"
-        const val SESSION_ID = "5UsBoitooSMhp9Hw1YoPolWd5yj3jFMt"
+
+        // Centralized reference aliases from NetworkConstants for convenience and backward compatibility
+        const val SECRET_KEY = NetworkConstants.SECRET_KEY
+        const val CLIENT_KEY = NetworkConstants.CLIENT_KEY
+        const val SESSION_ID = NetworkConstants.SESSION_ID
     }
 }

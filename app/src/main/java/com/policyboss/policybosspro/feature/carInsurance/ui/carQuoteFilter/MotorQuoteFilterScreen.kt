@@ -20,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
+import com.policyboss.policybosspro.feature.carInsurance.model.PolicyType
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.AddOnsFilterSection
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.DiscountsFilterSection
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.component.FilterBottomCtaBar
@@ -53,11 +54,14 @@ fun MotorQuoteFilterScreen(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            // Fixed Left Category Rail (~128.dp)
-            FilterCategoryRail(
-                selectedCategory = uiState.selectedFilterCategory,
-                onCategorySelected = { onAction(NewCarAction.OnSelectFilterCategory(it)) }
-            )
+            // Fixed Left Category Rail (~128.dp); hidden when only one category applies (TP-only)
+            if (uiState.showFilterCategoryRail) {
+                FilterCategoryRail(
+                    selectedCategory = uiState.selectedFilterCategory,
+                    categories = uiState.availableFilterCategories,
+                    onCategorySelected = { onAction(NewCarAction.OnSelectFilterCategory(it)) }
+                )
+            }
 
             // Scrollable Right Filter Section (strictly bounded above the bottom bar)
             val scrollState = rememberScrollState()
@@ -72,7 +76,7 @@ fun MotorQuoteFilterScreen(
                         .verticalScroll(scrollState)
                         .padding(bottom = 16.dp)
                 ) {
-                    when (uiState.selectedFilterCategory) {
+                    when (uiState.coerceFilterCategory(uiState.selectedFilterCategory)) {
                         FilterCategory.SET_IDV -> {
                             SetIdvFilterSection(
                                 selectedIdv = uiState.draftQuoteFilter.selectedIdv,
@@ -96,6 +100,7 @@ fun MotorQuoteFilterScreen(
                                 selectedUnNamedPassengerCover = uiState.draftQuoteFilter.selectedUnNamedPassengerCover,
                                 electricalAccessoriesAmount = uiState.draftQuoteFilter.electricalAccessoriesAmount,
                                 nonElectricalAccessoriesAmount = uiState.draftQuoteFilter.nonElectricalAccessoriesAmount,
+                                showAccessories = uiState.showAccessoriesFilter,
                                 onToggleLiabilityCover = { onAction(NewCarAction.OnToggleDraftLiabilityCover(it)) },
                                 onSelectUnNamedPassengerCover = {
                                     onAction(NewCarAction.OnSelectDraftUnNamedPassengerCover(it))
@@ -131,7 +136,7 @@ fun MotorQuoteFilterScreen(
 
         // 3. Pinned Bottom CTA Bar (Reset on Left, Apply on Right)
         FilterBottomCtaBar(
-            activeFilterCount = uiState.draftQuoteFilter.activeFilterCount,
+            activeFilterCount = uiState.draftFilterCount,
             onApplyClick = {
                 if (uiState.draftQuoteFilter.isAccessoriesValid) {
                     onApplyClick()
@@ -143,11 +148,22 @@ fun MotorQuoteFilterScreen(
     }
 }
 
-@Preview(showBackground = true, widthDp = 375, heightDp = 812)
+@Preview(name = "Filter - Comprehensive / OD", showBackground = true, widthDp = 375, heightDp = 812)
 @Composable
 private fun MotorQuoteFilterScreenPreview() {
     MotorQuoteFilterScreen(
         uiState = NewCarUiState(),
+        onAction = {},
+        onCloseClick = {},
+        onApplyClick = {}
+    )
+}
+
+@Preview(name = "Filter - TP only", showBackground = true, widthDp = 360, heightDp = 812)
+@Composable
+private fun MotorQuoteFilterScreenTpPreview() {
+    MotorQuoteFilterScreen(
+        uiState = NewCarUiState(policyType = PolicyType.TP_ONLY),
         onAction = {},
         onCloseClick = {},
         onApplyClick = {}

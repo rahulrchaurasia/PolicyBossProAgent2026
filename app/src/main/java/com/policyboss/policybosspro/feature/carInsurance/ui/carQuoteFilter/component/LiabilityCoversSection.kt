@@ -3,7 +3,9 @@ package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.comp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,11 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,11 +30,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.LiabilityCoverItem
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.MotorQuoteFilterData
+import com.policyboss.policybosspro.ui.components.checkbox.AppCheckboxOption
+import com.policyboss.policybosspro.ui.components.radio.AppRadioButtonOption
 import com.policyboss.policybosspro.ui.theme.AppColors
 
 @Composable
@@ -52,6 +53,8 @@ fun LiabilityCoversSection(
     modifier: Modifier = Modifier,
     items: List<LiabilityCoverItem> = MotorQuoteFilterData.additionalCoverItems,
     unNamedOptions: List<String> = MotorQuoteFilterData.unNamedPassengerOptions,
+    /** Electrical / Non-Electrical accessories are own-damage covers: hidden for TP-only. */
+    showAccessories: Boolean = true,
     // Retained for backward-compatibility if invoked from older callers
     liabilityCoverRanges: Map<String, ClosedFloatingPointRange<Float>> = emptyMap(),
     onUpdateLiabilityRange: ((String, ClosedFloatingPointRange<Float>) -> Unit)? = null
@@ -90,25 +93,14 @@ fun LiabilityCoversSection(
         // Group 1: Multi-Select Liability Cover Checkboxes
         // ==========================================
         items.forEach { item ->
-            val isChecked = selectedLiabilityCoverIds.contains(item.id)
-            Row(
+            AppCheckboxOption(
+                checked = selectedLiabilityCoverIds.contains(item.id),
+                onCheckedChange = { onToggleLiabilityCover(item.id) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onToggleLiabilityCover(item.id) }
-                    .padding(vertical = 8.dp, horizontal = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(vertical = 9.dp, horizontal = 2.dp),
+                spacing = 12.dp
             ) {
-                Checkbox(
-                    checked = isChecked,
-                    onCheckedChange = { onToggleLiabilityCover(item.id) },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = AppColors.PrimaryBlue,
-                        uncheckedColor = AppColors.BorderSecondary
-                    ),
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = item.title,
                     fontSize = 15.sp,
@@ -136,159 +128,142 @@ fun LiabilityCoversSection(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Row 1: No | ₹ 50,000
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PassengerRadioOption(
-                label = "No",
-                isSelected = (effectivePassengerSelection == "No"),
-                onSelect = { onSelectUnNamedPassengerCover("No") },
-                modifier = Modifier.weight(1f)
-            )
-            PassengerRadioOption(
-                label = "₹ 50,000",
-                isSelected = (effectivePassengerSelection == "₹ 50,000"),
-                onSelect = { onSelectUnNamedPassengerCover("₹ 50,000") },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Row 2: ₹ 1,00,000 | ₹ 2,00,000
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PassengerRadioOption(
-                label = "₹ 1,00,000",
-                isSelected = (effectivePassengerSelection == "₹ 1,00,000"),
-                onSelect = { onSelectUnNamedPassengerCover("₹ 1,00,000") },
-                modifier = Modifier.weight(1f)
-            )
-            PassengerRadioOption(
-                label = "₹ 2,00,000",
-                isSelected = (effectivePassengerSelection == "₹ 2,00,000"),
-                onSelect = { onSelectUnNamedPassengerCover("₹ 2,00,000") },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        HorizontalDivider(
-            color = Color(0xFFF1F5F9),
-            thickness = 1.dp,
-            modifier = Modifier.padding(vertical = 12.dp)
+        UnNamedPassengerOptions(
+            options = unNamedOptions,
+            selected = effectivePassengerSelection,
+            onSelect = onSelectUnNamedPassengerCover
         )
 
-        // ==========================================
-        // Group 3: Accessories Rupee Numeric Inputs
-        // ==========================================
-        // 1. Electrical Accessories
-        Text(
-            text = "Electrical Accessories:",
-            fontSize = 14.5.sp,
-            fontWeight = FontWeight.Medium,
-            color = AppColors.TextPrimary
-        )
+        if (showAccessories) {
+            HorizontalDivider(
+                color = Color(0xFFF1F5F9),
+                thickness = 1.dp,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        AccessoryInputField(
-            value = electricalAccessoriesAmount,
-            onValueChange = onUpdateElectricalAccessories,
-            isError = electricalError != null,
-            imeAction = ImeAction.Next,
-            keyboardActions = KeyboardActions(onNext = { focusManager.clearFocus() })
-        )
-
-        Text(
-            text = "Min: 10,000 To Max: 50,000",
-            fontSize = 12.sp,
-            color = AppColors.TextSecondary,
-            modifier = Modifier.padding(top = 4.dp, start = 2.dp)
-        )
-
-        if (electricalError != null) {
+            // ==========================================
+            // Group 3: Accessories Rupee Numeric Inputs
+            // ==========================================
+            // 1. Electrical Accessories
             Text(
-                text = electricalError,
-                fontSize = 11.5.sp,
-                color = Color(0xFFDC2626),
-                modifier = Modifier.padding(top = 2.dp, start = 2.dp)
+                text = "Electrical Accessories:",
+                fontSize = 14.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = AppColors.TextPrimary
             )
-        }
 
-        Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-        // 2. Non-Electrical Accessories
-        Text(
-            text = "Non-Electrical Accessories:",
-            fontSize = 14.5.sp,
-            fontWeight = FontWeight.Medium,
-            color = AppColors.TextPrimary
-        )
+            AccessoryInputField(
+                value = electricalAccessoriesAmount,
+                onValueChange = onUpdateElectricalAccessories,
+                isError = electricalError != null,
+                imeAction = ImeAction.Next,
+                keyboardActions = KeyboardActions(onNext = { focusManager.clearFocus() })
+            )
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        AccessoryInputField(
-            value = nonElectricalAccessoriesAmount,
-            onValueChange = onUpdateNonElectricalAccessories,
-            isError = nonElectricalError != null,
-            imeAction = ImeAction.Done,
-            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
-        )
-
-        Text(
-            text = "Min: 10,000 To Max: 50,000",
-            fontSize = 12.sp,
-            color = AppColors.TextSecondary,
-            modifier = Modifier.padding(top = 4.dp, start = 2.dp)
-        )
-
-        if (nonElectricalError != null) {
             Text(
-                text = nonElectricalError,
-                fontSize = 11.5.sp,
-                color = Color(0xFFDC2626),
-                modifier = Modifier.padding(top = 2.dp, start = 2.dp)
+                text = "Min: 10,000 To Max: 50,000",
+                fontSize = 12.sp,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(top = 4.dp, start = 2.dp)
             )
+
+            if (electricalError != null) {
+                Text(
+                    text = electricalError,
+                    fontSize = 11.5.sp,
+                    color = Color(0xFFDC2626),
+                    modifier = Modifier.padding(top = 2.dp, start = 2.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 2. Non-Electrical Accessories
+            Text(
+                text = "Non-Electrical Accessories:",
+                fontSize = 14.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = AppColors.TextPrimary
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            AccessoryInputField(
+                value = nonElectricalAccessoriesAmount,
+                onValueChange = onUpdateNonElectricalAccessories,
+                isError = nonElectricalError != null,
+                imeAction = ImeAction.Done,
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
+            )
+
+            Text(
+                text = "Min: 10,000 To Max: 50,000",
+                fontSize = 12.sp,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(top = 4.dp, start = 2.dp)
+            )
+
+            if (nonElectricalError != null) {
+                Text(
+                    text = nonElectricalError,
+                    fontSize = 11.5.sp,
+                    color = Color(0xFFDC2626),
+                    modifier = Modifier.padding(top = 2.dp, start = 2.dp)
+                )
+            }
         }
     }
 }
 
+/**
+ * Un-Named Passenger Cover choices. Two columns when each cell has room for a one-line label,
+ * otherwise a single column, so "₹ 1,00,000" never splits across lines.
+ */
 @Composable
-private fun PassengerRadioOption(
-    label: String,
-    isSelected: Boolean,
-    onSelect: () -> Unit,
+private fun UnNamedPassengerOptions(
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .clickable { onSelect() }
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(
-            selected = isSelected,
-            onClick = onSelect,
-            colors = RadioButtonDefaults.colors(
-                selectedColor = AppColors.PrimaryBlue,
-                unselectedColor = Color(0xFFCBD5E1)
-            ),
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = label,
-            fontSize = 14.5.sp,
-            fontWeight = FontWeight.Normal,
-            color = AppColors.TextPrimary
-        )
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val columns = if (maxWidth / 2 >= MIN_PASSENGER_CELL_WIDTH) 2 else 1
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            options.chunked(columns).forEach { rowOptions ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    rowOptions.forEach { option ->
+                        AppRadioButtonOption(
+                            selected = option == selected,
+                            onClick = { onSelect(option) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                // Non-breaking space keeps "₹" with the amount; the value sent stays unchanged
+                                text = option.replace(' ', '\u00A0'),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = AppColors.TextPrimary,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    // Keep the grid aligned when the last row is not full
+                    repeat(columns - rowOptions.size) { Spacer(modifier = Modifier.weight(1f)) }
+                }
+            }
+        }
     }
 }
+
+/** Radio (20.dp) + spacing (8.dp) + one-line "₹ 2,00,000" at 14.sp. */
+private val MIN_PASSENGER_CELL_WIDTH = 116.dp
 
 @Composable
 private fun AccessoryInputField(
@@ -384,5 +359,21 @@ private fun LiabilityCoversSectionSelectedPreview() {
         onSelectUnNamedPassengerCover = {},
         onUpdateElectricalAccessories = {},
         onUpdateNonElectricalAccessories = {}
+    )
+}
+
+@Preview(name = "Additional Cover - TP (no accessories)", showBackground = true, widthDp = 360)
+@Composable
+private fun LiabilityCoversSectionTpPreview() {
+    LiabilityCoversSection(
+        selectedLiabilityCoverIds = setOf("owner_driver_pa"),
+        selectedUnNamedPassengerCover = "₹ 1,00,000",
+        electricalAccessoriesAmount = "0",
+        nonElectricalAccessoriesAmount = "0",
+        onToggleLiabilityCover = {},
+        onSelectUnNamedPassengerCover = {},
+        onUpdateElectricalAccessories = {},
+        onUpdateNonElectricalAccessories = {},
+        showAccessories = false
     )
 }

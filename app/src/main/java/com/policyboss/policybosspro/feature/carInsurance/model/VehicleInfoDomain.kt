@@ -28,19 +28,18 @@ data class VehicleInfoDomain(
     val previousInsurerId: String,
     val previousInsurerName: String,
     val policyExpiryDate: String,
-    val vehicleDetailId: String
+    val vehicleDetailId: String,
+    /** Raw values kept for `quote/premium_initiate`; API formats, blank when unknown. */
+    val premiumData: VehiclePremiumData = VehiclePremiumData()
 ) {
     val hasExistingPolicy: Boolean
         get() = previousInsurerName.isNotBlank()
 
     /** `MARUTI-WAGON R-VXI+-PETROL- (998 CC)` */
     val carDetailsSummary: String
-        get() {
-            val base = listOf(makeName, modelName, variantName, fuelType)
-                .filter { it.isNotBlank() }
-                .joinToString("-")
-            return if (cubicCapacity.isNotBlank()) "$base- ($cubicCapacity CC)" else base
-        }
+        get() = com.policyboss.policybosspro.feature.carInsurance.data.mapper.buildCarDetailsSummary(
+            makeName, modelName, variantName, fuelType, cubicCapacity
+        )
 
     /**
      * True when every field that the WITH_CAR_NUMBER form locks (customer name, RTO,
@@ -54,6 +53,32 @@ data class VehicleInfoDomain(
             manufacturingMonth.isNotBlank() &&
             manufacturingYear.isNotBlank()
 }
+
+/**
+ * Vahan values needed only by `quote/premium_initiate`. Dates are `yyyy-MM-dd`
+ * (manufacture date is `yyyy-MM-01`); every value is blank when the vahan lookup had none.
+ */
+@Immutable
+data class VehiclePremiumData(
+    val registrationDateApi: String = "",
+    val manufactureDateApi: String = "",
+    val policyExpiryDateApi: String = "",
+    val previousPolicyNumber: String = "",
+    val chassisNumber: String = "",
+    val engineNumber: String = "",
+    val permanentPincode: String = "",
+    val vahanCcSlab: String = "",
+    val vahanSource: String = "",
+    val vahanCubicCapacity: String = "",
+    /** `MARUTI SUZUKI INDIA LTD|MARUTI WAGON R VXI BSIV|PETROL|998CC` */
+    val vahanFull: String = "",
+    /** `MARUTI|WAGON R|VXI+|PETROL|998 CC` */
+    val matchVehicleFull: String = "",
+    /** vahan Result/status was Success and RTO_Code was returned. */
+    val isFastlaneRto: Boolean = false,
+    val isFastlaneManufacture: Boolean = false,
+    val isFastlaneRegistration: Boolean = false
+)
 
 /**
  * One live Make/Model record from `vehicles/model_list`.

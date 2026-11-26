@@ -71,79 +71,36 @@ fun PolicyVehicleInfoCard(
                     )
                 }
 
-                // 2. IDV & CRN (2 Columns)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "IDV",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = AppColors.TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "₹${MotorQuote.formatIndianCurrency(vehicleInfo.idv)}",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppColors.TextPrimary
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "CRN",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = AppColors.TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = vehicleInfo.crn,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppColors.TextPrimary
-                        )
-                    }
+                // 2-3. Detail cells in 2 columns; IDV and New NCB are absent for TP-only
+                val cells = buildList {
+                    vehicleInfo.idv?.let { add(Triple("IDV", "₹${MotorQuote.formatIndianCurrency(it)}", FontWeight.Bold)) }
+                    add(Triple("CRN", vehicleInfo.crn, FontWeight.Bold))
+                    add(Triple("Reg Date", vehicleInfo.regDate, FontWeight.SemiBold))
+                    vehicleInfo.newNcb?.let { add(Triple("New NCB", it, FontWeight.SemiBold)) }
                 }
-
-                // 3. Reg Date & New NCB (2 Columns)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Reg Date",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = AppColors.TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = vehicleInfo.regDate,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppColors.TextPrimary
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "New NCB",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = AppColors.TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = vehicleInfo.newNcb,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppColors.TextPrimary
-                        )
+                cells.chunked(2).forEach { rowCells ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        rowCells.forEach { (label, value, weight) ->
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = AppColors.TextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = value,
+                                    fontSize = 14.sp,
+                                    fontWeight = weight,
+                                    color = AppColors.TextPrimary
+                                )
+                            }
+                        }
+                        if (rowCells.size == 1) Spacer(modifier = Modifier.weight(1f))
                     }
                 }
 
@@ -178,6 +135,22 @@ private fun PolicyVehicleInfoCardPreview() {
             crn = "12682505",
             regDate = "18 Oct, 2011",
             newNcb = "20%",
+            planName = "GOLD"
+        ),
+        isVisible = true
+    )
+}
+
+@Preview(name = "Vehicle Info - TP only", showBackground = true)
+@Composable
+private fun PolicyVehicleInfoCardPreviewTp() {
+    PolicyVehicleInfoCard(
+        vehicleInfo = PolicyVehicleInfo(
+            carModel = "Maruti, Wagon R, Petrol, 1.0 VXI PLUS (998 CC)",
+            idv = null,
+            crn = "12682505",
+            regDate = "18 Oct, 2011",
+            newNcb = null,
             planName = "GOLD"
         ),
         isVisible = true
