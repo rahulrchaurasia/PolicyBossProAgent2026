@@ -46,7 +46,12 @@ fun MotorQuoteFilterScreen(
             .imePadding()
     ) {
         // 1. Minimal Top Bar with right-aligned Close (✕) button
-        FilterTopBar(onCloseClick = onCloseClick)
+        FilterTopBar(
+            onCloseClick = onCloseClick,
+            title = if (!uiState.showFilterCategoryRail && uiState.availableFilterCategories.isNotEmpty())
+                uiState.availableFilterCategories.first().displayName
+            else null
+        )
 
         // 2. Split Layout: Fixed Left Rail + Scrollable Right Content Pane (weight = 1f)
         Row(

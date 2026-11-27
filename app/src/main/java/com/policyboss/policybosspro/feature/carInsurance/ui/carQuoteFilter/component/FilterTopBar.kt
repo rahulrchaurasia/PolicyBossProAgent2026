@@ -15,11 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.ui.theme.AppColors
 
 @Composable
 fun FilterTopBar(
     onCloseClick: () -> Unit,
+    title: String? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -27,9 +29,18 @@ fun FilterTopBar(
             .fillMaxWidth()
             .statusBarsPadding()
             .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = if (title != null) Arrangement.SpaceBetween else Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (title != null) {
+            androidx.compose.material3.Text(
+                text = title,
+                fontSize = 17.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = com.policyboss.policybosspro.ui.theme.AppColors.TextPrimary,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
         IconButton(
             onClick = onCloseClick,
             modifier = Modifier.size(40.dp)

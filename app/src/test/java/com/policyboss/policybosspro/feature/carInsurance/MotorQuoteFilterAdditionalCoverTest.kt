@@ -206,4 +206,29 @@ class MotorQuoteFilterAdditionalCoverTest {
         assertFalse(companyFilter.isOwnerDriverPaCover)
         assertEquals(setOf("paid_driver_liability"), companyFilter.selectedLiabilityCoverIds)
     }
+
+    @Test
+    fun `car value label shows Set IDV when not explicitly changed and formatted rupees when changed`() {
+        val initial = QuoteFilterState(
+            selectedIdv = 71414f,
+            defaultIdv = 71414f,
+            minIdv = 71414f,
+            maxIdv = 234780f,
+            isIdvExplicitlyChanged = false
+        )
+        val initialLabel = if (!initial.isIdvExplicitlyChanged) {
+            "Set IDV"
+        } else {
+            "₹${com.policyboss.policybosspro.feature.carInsurance.model.MotorQuote.formatIndianCurrency(initial.selectedIdv.toInt())}"
+        }
+        assertEquals("Set IDV", initialLabel)
+
+        val updated = initial.copy(selectedIdv = 90000f, isIdvExplicitlyChanged = true)
+        val updatedLabel = if (!updated.isIdvExplicitlyChanged) {
+            "Set IDV"
+        } else {
+            "₹${com.policyboss.policybosspro.feature.carInsurance.model.MotorQuote.formatIndianCurrency(updated.selectedIdv.toInt())}"
+        }
+        assertEquals("₹90,000", updatedLabel)
+    }
 }

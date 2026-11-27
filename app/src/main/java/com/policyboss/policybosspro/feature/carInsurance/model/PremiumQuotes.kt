@@ -61,7 +61,8 @@ data class PremiumQuoteList(
     val quotes: List<MotorQuote>,
     val declinedInsurers: List<DeclinedInsurer>,
     val minIdv: Int,
-    val maxIdv: Int
+    val maxIdv: Int,
+    val vehicleExpectedIdv: Int = 0
 ) {
     /**
      * Each premium_list_db response is a full snapshot, so the newer one wins. Insurers that were
