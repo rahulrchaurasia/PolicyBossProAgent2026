@@ -197,8 +197,24 @@ data class NewCarUiState(
     /** Latest premium_summary while insurers are still answering; null when not polling. */
     val premiumProgress: PremiumProgress? = null,
     /** Insurer quotes from premium_list_db; [quotes] holds the same plans for the list UI. */
-    val premiumQuoteList: PremiumQuoteList? = null
+    val premiumQuoteList: PremiumQuoteList? = null,
+    /** premium_list_db polling state; null before the first answer or when polling was cancelled. */
+    val premiumPollStatus: PremiumPollStatus? = null
 ) {
+    /** More insurers may still answer; the results list keeps growing. */
+    val isFetchingMoreQuotes: Boolean
+        get() = premiumPollStatus == PremiumPollStatus.POLLING
+
+    /** Answered / total insurers (0..1) for the footer progress bar; null when unknown. */
+    val premiumProgressFraction: Float?
+        get() = premiumProgress?.takeIf { it.total > 0 }?.let { progress ->
+            (progress.total - progress.pending).coerceIn(0, progress.total).toFloat() / progress.total
+        }
+
+    /** Polling hit the time limit while some insurers had not answered. */
+    val isQuotesFetchTimedOut: Boolean
+        get() = premiumPollStatus == PremiumPollStatus.TIMED_OUT
+
     val isLoading: Boolean
         get() = quoteState is QuoteFetchState.Loading
 
@@ -467,9 +483,9 @@ data class NewCarUiState(
     fun coerceFilterCategory(category: FilterCategory): FilterCategory =
         category.takeIf { it in availableFilterCategories } ?: availableFilterCategories.first()
 
-    /** premium_initiate succeeded but no insurer returned a plan. */
+    /** premium_initiate succeeded but no insurer returned a plan (and none are still expected). */
     val isAwaitingInsurerQuotes: Boolean
-        get() = premiumInitiate != null && quotes.isEmpty()
+        get() = premiumInitiate != null && quotes.isEmpty() && !isFetchingMoreQuotes
 
     val awaitingQuotesMessage: String
         get() {
@@ -581,9 +597,8 @@ data class NewCarUiState(
                     } catch (_: Exception) { }
                 }
             }
-            // Guardrail fallback: Current date formatted as "dd MMM yyyy" (e.g. "21 Nov 2026")
-            val calendar = java.util.Calendar.getInstance()
-            return java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.ENGLISH).format(calendar.time)
+            // Quotes stay valid until the end of tomorrow, e.g. "27 Nov 2026, 11:59 PM"
+            return quoteValidUptoLabel(java.time.LocalDate.now())
         }
 
     val vahanDescriptionText: String
@@ -597,3 +612,9 @@ data class NewCarUiState(
             return "KIA INDIA PRIVATE LIMITED, SELTOS D1.5 6AT GTX PLUS, DIESEL, 1493CC"
         }
 }
+
+/** Quote validity: [today] + 1 day at 23:59:59, formatted as "27 Nov 2026, 11:59 PM". */
+fun quoteValidUptoLabel(today: java.time.LocalDate): String =
+    today.plusDays(1)
+        .atTime(23, 59, 59)
+        .format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a", java.util.Locale.ENGLISH))

@@ -1,5 +1,9 @@
 package com.policyboss.policybosspro.feature.carInsurance
 
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.Flow
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuotePollEvent
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumPollStatus
 import com.policyboss.policybosspro.core.Resource
 import com.policyboss.policybosspro.feature.carInsurance.data.api.CarInsuranceApi
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteRequest
@@ -61,8 +65,13 @@ class NewCarQuoteLoadingTest {
     /** Car-number journey: quotes are started through premium_initiate. */
     private fun premiumRepository(
         quotes: suspend (String) -> Resource<PremiumQuoteList> = { Resource.Success(samplePremiumQuoteList(it)) },
+        pollEvents: ((String) -> Flow<PremiumQuotePollEvent>)? = null,
         handler: suspend (PremiumInitiateInput) -> Resource<PremiumInitiateResult>
-    ): FakeCarInsuranceRepository = object : FakeCarInsuranceRepository(premium = handler, premiumQuotes = quotes) {
+    ): FakeCarInsuranceRepository = object : FakeCarInsuranceRepository(
+        premium = handler,
+        premiumQuotes = quotes,
+        premiumPollEvents = pollEvents
+    ) {
         override suspend fun getCarQuotes(request: CarQuoteRequest): Resource<CarQuoteResponse> =
             error("car-number journey must not call getCarQuotes")
     }
@@ -290,6 +299,136 @@ class NewCarQuoteLoadingTest {
         )
         assertTrue(loadingEvents.none { it is QuoteLoadingUiEvent.NavigateToQuotes })
         loadingJob.cancel()
+    }
+
+    /** Two premium_list_db snapshots: IFFCO first (pending), then IFFCO + Bajaj (complete). */
+    private fun progressivePoll(secondSnapshot: CompletableDeferred<Unit>): (String) -> Flow<PremiumQuotePollEvent> = { srn ->
+        flow {
+            val full = samplePremiumQuoteList(srn)
+            val first = full.copy(quotes = full.quotes.take(1), progress = PremiumProgress("pending", total = 3, pending = 2))
+            emit(PremiumQuotePollEvent.Update(first, PremiumPollStatus.POLLING))
+            secondSnapshot.await()
+            emit(PremiumQuotePollEvent.Update(full, PremiumPollStatus.COMPLETE))
+        }
+    }
+
+    @Test
+    fun `results open on the first premium_list_db answer and grow as insurers respond`() = runTest {
+        val second = CompletableDeferred<Unit>()
+        val repo = premiumRepository(pollEvents = progressivePoll(second)) { Resource.Success(samplePremiumInitiateResult("11380101")) }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
+        val loadingJob = launch { vm.quoteLoadingEvent.collect { loadingEvents.add(it) } }
+
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        // First snapshot: results open with what has arrived, polling continues
+        assertEquals(listOf("ARN-IFFCO"), vm.uiState.value.quotes.map { it.id })
+        assertTrue(vm.uiState.value.isFetchingMoreQuotes)
+        assertEquals("1 of 3 insurers responded", vm.uiState.value.premiumProgressText)
+        assertEquals(1, loadingEvents.count { it is QuoteLoadingUiEvent.NavigateToQuotes })
+        vm.onAction(NewCarAction.OnQuoteNavigationHandled)
+
+        // Second snapshot: the list grows in place, no second navigation
+        second.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf("ARN-IFFCO", "ARN-BAJAJ"), vm.uiState.value.quotes.map { it.id })
+        assertFalse(vm.uiState.value.isFetchingMoreQuotes)
+        assertEquals(PremiumPollStatus.COMPLETE, vm.uiState.value.premiumPollStatus)
+        assertEquals(1, loadingEvents.count { it is QuoteLoadingUiEvent.NavigateToQuotes })
+        assertEquals("11380101", vm.uiState.value.crnNumber)
+        loadingJob.cancel()
+    }
+
+    @Test
+    fun `results open on an empty first answer and the count grows as plans arrive`() = runTest {
+        val second = CompletableDeferred<Unit>()
+        val poll: (String) -> Flow<PremiumQuotePollEvent> = { srn ->
+            flow {
+                val full = samplePremiumQuoteList(srn)
+                // First answer: insurers still working, no valid plan yet
+                val empty = full.copy(quotes = emptyList(), progress = PremiumProgress("pending", total = 18, pending = 15))
+                emit(PremiumQuotePollEvent.Update(empty, PremiumPollStatus.POLLING))
+                second.await()
+                emit(PremiumQuotePollEvent.Update(full, PremiumPollStatus.POLLING))
+            }
+        }
+        val repo = premiumRepository(pollEvents = poll) { Resource.Success(samplePremiumInitiateResult()) }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
+        val loadingJob = launch { vm.quoteLoadingEvent.collect { loadingEvents.add(it) } }
+
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        // Results open on the first answer; 0 quotes is shown as is
+        assertEquals(1, loadingEvents.count { it is QuoteLoadingUiEvent.NavigateToQuotes })
+        assertEquals(0, vm.uiState.value.totalQuotesCount)
+        assertTrue(vm.uiState.value.isFetchingMoreQuotes)
+
+        second.complete(Unit)
+        advanceUntilIdle()
+
+        // Plans arrive: count grows, values bound, no second navigation
+        assertEquals(2, vm.uiState.value.totalQuotesCount)
+        assertEquals(2471, vm.uiState.value.minPremium)
+        assertEquals(1, loadingEvents.count { it is QuoteLoadingUiEvent.NavigateToQuotes })
+        loadingJob.cancel()
+    }
+
+    @Test
+    fun `leaving results stops polling and ignores later snapshots`() = runTest {
+        val second = CompletableDeferred<Unit>()
+        val repo = premiumRepository(pollEvents = progressivePoll(second)) { Resource.Success(samplePremiumInitiateResult()) }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.isFetchingMoreQuotes)
+
+        vm.onAction(NewCarAction.OnLeaveQuoteResults)
+        second.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isFetchingMoreQuotes)
+        assertEquals(listOf("ARN-IFFCO"), vm.uiState.value.quotes.map { it.id })
+    }
+
+    @Test
+    fun `get quotes again while polling starts a new search`() = runTest {
+        val second = CompletableDeferred<Unit>()
+        val repo = premiumRepository(pollEvents = progressivePoll(second)) { Resource.Success(samplePremiumInitiateResult()) }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+        vm.onAction(NewCarAction.OnQuoteNavigationHandled)
+
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        assertEquals(2, repo.premiumInitiateInputs.size)
+        assertEquals(2, repo.premiumQuoteSearches.size)
+    }
+
+    @Test
+    fun `zextra switch follows the CPA choice when real quotes load`() = runTest {
+        val repo = premiumRepository { Resource.Success(samplePremiumInitiateResult()) }
+        val vm = NewCarViewModel(repo)
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        // Default CPA choice is Insurer CPA, so the Zextra bundle is not added
+        assertFalse(vm.uiState.value.isZextraBundleEnabled)
     }
 
     @Test

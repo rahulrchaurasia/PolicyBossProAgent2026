@@ -1,5 +1,10 @@
 package com.policyboss.policybosspro.feature.carInsurance
 
+import kotlin.time.Duration.Companion.seconds
+import com.policyboss.policybosspro.feature.carInsurance.data.repository.premiumPollDelay
+import kotlinx.coroutines.flow.toList
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuotePollEvent
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumPollStatus
 import com.policyboss.policybosspro.core.Resource
 import com.policyboss.policybosspro.feature.carInsurance.data.mapper.addonDisplayName
 import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toPremiumInitiateResult
@@ -12,6 +17,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsu
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.VehicleInfoSessionProvider
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumInitiateResult
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumProgress
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -97,7 +103,9 @@ class PremiumQuoteListTest {
             {
               "Insurer_Id": 7,
               "Insurer": { "Insurer_Code": "IFFCO Tokio", "Insurer_ID": 7 },
-              "Premium_Breakup": { "final_premium": 2471, "QUOTE_ID": "BA503150VPC15198449" },
+              "Premium_Breakup": { "net_premium": 2094, "service_tax": 376.92, "final_premium": 2471,
+                "rsa_cpa_bundle_breakup": { "bundle_net_premium": 300, "bundle_final_premium": 354, "bundle_service_tax": 54 },
+                "QUOTE_ID": "BA503150VPC15198449" },
               "Plan_List": [
                 {
                   "Plan_Id": 65, "Plan_Name": "Comprehensive",
@@ -115,6 +123,12 @@ class PremiumQuoteListTest {
               "Insurer": { "Insurer_Code": "Oriental Insurance", "Insurer_ID": 13 },
               "Plan_List": [], "Error_Code": "LM002", "Error_Msg": null
             }
+            ,{
+              "Insurer_Id": 44,
+              "Insurer": { "Insurer_Code": "GoDigit", "Insurer_ID": 44 },
+              "Premium_Breakup": { "net_premium": 0, "final_premium": 0 },
+              "Plan_List": [], "Error_Code": ""
+            }
           ],
           "Zextra_Response": null,
           "Addon_Request": {},
@@ -127,15 +141,20 @@ class PremiumQuoteListTest {
     private fun parseList() = testJson.decodeFromString(PremiumListResponseDto.serializer(), listJson)
 
     @Test
-    fun `insurer plans become quotes, cheapest first`() {
+    fun `valid insurer rows become one quote each, cheapest first`() {
         val list = parseList().toPremiumQuoteList(srn)
 
         assertEquals("12698778", list.crn)
         assertEquals(srn, list.searchReferenceNumber)
+        // Valid = no Error_Code, Premium_Breakup present, net_premium > 0 -> "2 Plans Found"
         assertEquals(listOf("IFFCO Tokio", "Bajaj Allianz"), list.quotes.map { it.insurerName })
+        assertEquals(listOf(7, 1), list.quotes.map { it.insurerId })
 
         val iffco = list.quotes.first()
         assertEquals(2471, iffco.finalPremium)
+        assertEquals(354, iffco.zextraBundlePremium)
+        assertEquals(2471 + 354, iffco.effectivePremium(isZextraEnabled = true))
+        assertEquals(2471, iffco.effectivePremium(isZextraEnabled = false))
         assertEquals("Comprehensive", iffco.planName)
         assertEquals(412000, iffco.idvValue)
         assertEquals(listOf("Zero Dep" to 680), iffco.addOns.map { it.name to it.price })
@@ -154,7 +173,8 @@ class PremiumQuoteListTest {
     fun `insurers without a plan are listed with their reason`() {
         val declined = parseList().toPremiumQuoteList(srn).declinedInsurers
 
-        assertEquals(listOf("Future Generali", "Oriental Insurance"), declined.map { it.insurerName })
+        // GoDigit has no Error_Code but net_premium 0, so it is not a plan
+        assertEquals(listOf("Future Generali", "Oriental Insurance", "GoDigit"), declined.map { it.insurerName })
         assertEquals("Vehicle Underwriting Restriction", declined[0].reason)
         // No Error_Msg: falls back to Error_Master
         assertEquals("Un-Identified Error", declined[1].reason)
@@ -254,68 +274,105 @@ class PremiumQuoteListTest {
     // Repository polling
     // -----------------------------------------------------------------
 
-    private class PollingApi(private val summaries: List<String>, private val listBody: String) : ThrowingCarInsuranceApi() {
-        val summaryRequests = mutableListOf<PremiumSearchRequest>()
-        val listRequests = mutableListOf<PremiumSearchRequest>()
-
-        override suspend fun premiumSummary(request: PremiumSearchRequest): Response<PremiumSummaryResponseDto> {
-            summaryRequests += request
-            val json = summaries[(summaryRequests.size - 1).coerceAtMost(summaries.lastIndex)]
-            return Response.success(testJson.decodeFromString(PremiumSummaryResponseDto.serializer(), json))
-        }
+    /** Answers premium_list_db calls in order; `null` = HTTP 500. The last answer repeats. */
+    private class SequenceApi(private val answers: List<String?>) : ThrowingCarInsuranceApi() {
+        val requests = mutableListOf<PremiumSearchRequest>()
 
         override suspend fun premiumList(request: PremiumSearchRequest): Response<PremiumListResponseDto> {
-            listRequests += request
-            return Response.success(testJson.decodeFromString(PremiumListResponseDto.serializer(), listBody))
+            requests += request
+            val body = answers[(requests.size - 1).coerceAtMost(answers.lastIndex)]
+                ?: return Response.error(500, "{}".toResponseBody())
+            return Response.success(testJson.decodeFromString(PremiumListResponseDto.serializer(), body))
         }
     }
 
-    private fun summary(status: String, pending: Int) =
-        """{"Status":"Not_Cached","Summary":{"Request_Unique_Id":"$srn","Status":"$status","Total":18,"Pending":$pending}}"""
+    private fun listBody(status: String, pending: Int) =
+        listJson.replace(""""Status": "complete", "Total": 18, "Pending": 0,""", """"Status": "$status", "Total": 18, "Pending": $pending,""")
 
-    private fun repository(api: PollingApi) =
+    private fun repository(api: SequenceApi) =
         CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
 
+    private fun statuses(events: List<PremiumQuotePollEvent>) =
+        events.map { (it as PremiumQuotePollEvent.Update).status }
+
     @Test
-    fun `polls summary until complete, then loads the list with the search reference`() = runTest {
-        val api = PollingApi(
-            summaries = listOf(summary("pending", 10), summary("pending", 3), summary("complete", 0)),
-            listBody = listJson
-        )
-        val progress = mutableListOf<Int>()
+    fun `polls premium_list_db one call at a time until complete`() = runTest {
+        val api = SequenceApi(listOf(listBody("pending", 10), listBody("pending", 3), listBody("complete", 0)))
 
-        val result = repository(api).awaitPremiumQuotes(srn, pollInterval = Duration.ZERO) { progress += it.pending }
+        val events = repository(api).pollPremiumQuotes(srn).toList()
 
-        assertEquals(listOf(10, 3, 0), progress)
-        assertEquals(3, api.summaryRequests.size)
-        assertEquals(1, api.listRequests.size)
-        val body = testJson.encodeToJsonElement(PremiumSearchRequest.serializer(), api.listRequests.single()).jsonObject
+        assertEquals(listOf(PremiumPollStatus.POLLING, PremiumPollStatus.POLLING, PremiumPollStatus.COMPLETE), statuses(events))
+        assertEquals(3, api.requests.size)
+        assertEquals(2_000L, currentTime) // two 1 s waits in the fast phase
+        val body = testJson.encodeToJsonElement(PremiumSearchRequest.serializer(), api.requests.first()).jsonObject
         assertEquals(setOf("search_reference_number", "secret_key", "client_key"), body.keys)
-        assertEquals(srn, api.listRequests.single().searchReferenceNumber)
-        assertEquals(2, (result as Resource.Success).data.quotes.size)
+        assertEquals(srn, api.requests.first().searchReferenceNumber)
+        assertEquals(2, (events.last() as PremiumQuotePollEvent.Update).quotes.quotes.size)
     }
 
     @Test
-    fun `timeout still loads the quotes received so far`() = runTest {
-        val api = PollingApi(summaries = listOf(summary("pending", 5)), listBody = listJson)
-
-        val result = repository(api).awaitPremiumQuotes(srn, pollInterval = Duration.ZERO, maxPolls = 4)
-
-        assertEquals(4, api.summaryRequests.size)
-        assertEquals(1, api.listRequests.size)
-        assertTrue(result is Resource.Success)
+    fun `complete on the first answer stops at once`() = runTest {
+        val events = repository(SequenceApi(listOf(listJson))).pollPremiumQuotes(srn).toList()
+        assertEquals(listOf(PremiumPollStatus.COMPLETE), statuses(events))
+        assertEquals(0L, currentTime)
     }
 
     @Test
-    fun `summary http error stops before the list call`() = runTest {
-        val api = object : ThrowingCarInsuranceApi() {
-            override suspend fun premiumSummary(request: PremiumSearchRequest): Response<PremiumSummaryResponseDto> =
-                Response.error(500, "{}".toResponseBody())
-        }
-        val result = CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
-            .awaitPremiumQuotes(srn, pollInterval = Duration.ZERO)
+    fun `stops after 60 s while still pending and keeps the plans`() = runTest {
+        val api = SequenceApi(listOf(listBody("pending", 5)))
 
-        assertEquals(Resource.Error("Unable to fetch quotes (500). Please try again."), result)
+        val events = repository(api).pollPremiumQuotes(srn).toList()
+
+        // 16 calls 1 s apart (0..15 s), then 15 calls 3 s apart (18..60 s)
+        assertEquals(31, api.requests.size)
+        assertEquals(60_000L, currentTime)
+        assertEquals(PremiumPollStatus.TIMED_OUT, statuses(events).last())
+        assertEquals(2, (events.last() as PremiumQuotePollEvent.Update).quotes.quotes.size)
+    }
+
+    @Test
+    fun `calls are 1 s apart for the first 15 s, then 3 s apart`() {
+        assertEquals(1.seconds, premiumPollDelay(0.seconds))
+        assertEquals(1.seconds, premiumPollDelay(14.seconds))
+        assertEquals(3.seconds, premiumPollDelay(15.seconds))
+        assertEquals(3.seconds, premiumPollDelay(45.seconds))
+    }
+
+    @Test
+    fun `a failed first call reports an error`() = runTest {
+        val api = SequenceApi(listOf(null))
+        val events = repository(api).pollPremiumQuotes(srn).toList()
+        assertEquals(listOf(PremiumQuotePollEvent.Failed("Unable to fetch quotes (500). Please try again.")), events)
+        assertEquals(1, api.requests.size)
+    }
+
+    @Test
+    fun `one failed poll is skipped and retried`() = runTest {
+        val api = SequenceApi(listOf(listBody("pending", 4), null, listBody("complete", 0)))
+        val events = repository(api).pollPremiumQuotes(srn).toList()
+        assertEquals(listOf(PremiumPollStatus.POLLING, PremiumPollStatus.COMPLETE), statuses(events))
+        assertEquals(3, api.requests.size)
+    }
+
+    @Test
+    fun `three failures in a row stop polling but keep the plans`() = runTest {
+        val api = SequenceApi(listOf(listBody("pending", 4), null, null, null, listJson))
+        val events = repository(api).pollPremiumQuotes(srn).toList()
+        assertEquals(listOf(PremiumPollStatus.POLLING, PremiumPollStatus.STOPPED_ON_ERROR), statuses(events))
+        assertEquals(4, api.requests.size)
+        assertEquals(2, (events.last() as PremiumQuotePollEvent.Update).quotes.quotes.size)
+    }
+
+    @Test
+    fun `newer snapshot wins and an insurer missing from it is kept`() {
+        val older = samplePremiumQuoteList()
+        val newer = older.copy(
+            quotes = listOf(older.quotes.first().copy(finalPremium = 2500)), // IFFCO only, re-priced
+            declinedInsurers = emptyList()
+        )
+        val merged = older.mergedWith(newer)
+        assertEquals(listOf("ARN-IFFCO" to 2500, "ARN-BAJAJ" to 4031), merged.quotes.map { it.id to it.finalPremium })
+        assertEquals(listOf("Future Generali"), merged.declinedInsurers.map { it.insurerName })
     }
 
     @Test

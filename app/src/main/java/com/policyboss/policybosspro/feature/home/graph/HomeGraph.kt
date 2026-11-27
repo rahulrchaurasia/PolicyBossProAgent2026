@@ -176,9 +176,11 @@ fun NavGraphBuilder.homeGraph(
             MotorQuoteResultsRoute(
                 viewModel = viewModel,
                 onNavigateBack = {
+                    viewModel.onAction(NewCarAction.OnLeaveQuoteResults)
                     appNavigator.navigateBack()
                 },
                 onNavigateToForm = {
+                    viewModel.onAction(NewCarAction.OnLeaveQuoteResults)
                     appNavigator.navigateBack()
                 },
                 onNavigateToUrl = { url, title ->

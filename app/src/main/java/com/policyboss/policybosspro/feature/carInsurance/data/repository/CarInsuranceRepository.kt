@@ -18,7 +18,11 @@ import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toPremiumPr
 import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toPremiumQuoteList
 import com.policyboss.policybosspro.feature.carInsurance.data.model.PremiumListResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.data.model.PremiumSearchRequest
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumPollStatus
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumProgress
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuotePollEvent
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuoteList
 import com.policyboss.policybosspro.feature.carInsurance.data.mapper.isVehicleFound
 import com.policyboss.policybosspro.feature.carInsurance.data.mapper.toCatalog
@@ -256,31 +260,73 @@ open class CarInsuranceRepository @Inject constructor(
         )
 
     /**
-     * Polls premium_summary every [pollInterval] until every insurer has answered (or
-     * [maxPolls] is reached), reporting each step through [onProgress], then loads
-     * premium_list_db. A timeout still loads the list, so the quotes received so far are shown.
+     * Polls `premium_list_db` until every insurer has answered, emitting each merged snapshot so
+     * the results list can grow while insurers respond.
+     *
+     * - Hit 0 runs immediately. If it fails, a single [PremiumQuotePollEvent.Failed] is emitted.
+     * - Then sequential calls (never overlapping, never parallel) while `Summary.Status` is pending:
+     *   [fastInterval] apart during the first [fastPhase], when insurers answer quickly, then
+     *   [slowInterval] apart (see [premiumPollDelay]), so the count visibly grows (0 → 4 → 8 → 14).
+     * - Stops on `complete`, after [maxDuration] of polling ([PremiumPollStatus.TIMED_OUT]), or after
+     *   [maxConsecutiveFailures] failed calls in a row ([PremiumPollStatus.STOPPED_ON_ERROR]).
+     *   A single failed call is skipped and retried on the next tick; the plans shown are kept.
+     * - Collecting in `viewModelScope` makes it cancellable: cancelling stops delays and requests.
      */
-    open suspend fun awaitPremiumQuotes(
+    open fun pollPremiumQuotes(
         searchReferenceNumber: String,
-        pollInterval: Duration = PREMIUM_POLL_INTERVAL,
-        maxPolls: Int = PREMIUM_MAX_POLLS,
-        onProgress: suspend (PremiumProgress) -> Unit = {}
-    ): Resource<PremiumQuoteList> {
-        for (attempt in 1..maxPolls) {
-            when (val summary = premiumSummary(searchReferenceNumber)) {
-                is Resource.Error -> return summary
+        fastInterval: Duration = PREMIUM_POLL_FAST_INTERVAL,
+        fastPhase: Duration = PREMIUM_POLL_FAST_PHASE,
+        slowInterval: Duration = PREMIUM_POLL_SLOW_INTERVAL,
+        maxDuration: Duration = PREMIUM_POLL_MAX_DURATION,
+        maxConsecutiveFailures: Int = PREMIUM_POLL_MAX_FAILURES
+    ): Flow<PremiumQuotePollEvent> = flow {
+        var latest: PremiumQuoteList? = null
+        var hits = 0
+        var elapsed = Duration.ZERO // time spent waiting between calls
+        var failuresInRow = 0
+
+        while (true) {
+            when (val result = premiumList(searchReferenceNumber)) {
                 is Resource.Success -> {
-                    onProgress(summary.data)
-                    if (summary.data.isComplete) break
+                    failuresInRow = 0
+                    val merged = latest?.mergedWith(result.data) ?: result.data
+                    latest = merged
+                    val status = when {
+                        result.data.progress.isComplete -> PremiumPollStatus.COMPLETE
+                        elapsed >= maxDuration -> PremiumPollStatus.TIMED_OUT
+                        else -> PremiumPollStatus.POLLING
+                    }
+                    VehicleApiLogger.d(
+                        "premium_list_db hit ${hits + 1} at ${elapsed.inWholeSeconds}s: ${merged.quotes.size} plans, " +
+                            "status=${result.data.progress.status}, pending=${result.data.progress.pending} -> $status"
+                    )
+                    emit(PremiumQuotePollEvent.Update(merged, status))
+                    if (status != PremiumPollStatus.POLLING) return@flow
+                }
+                is Resource.Error -> {
+                    val shown = latest
+                    if (shown == null) {
+                        emit(PremiumQuotePollEvent.Failed(result.message))
+                        return@flow
+                    }
+                    failuresInRow++
+                    val stopStatus = when {
+                        failuresInRow >= maxConsecutiveFailures -> PremiumPollStatus.STOPPED_ON_ERROR
+                        elapsed >= maxDuration -> PremiumPollStatus.TIMED_OUT
+                        else -> null
+                    }
+                    VehicleApiLogger.e("premium_list_db hit ${hits + 1} failed ($failuresInRow in a row): ${result.message}")
+                    if (stopStatus != null) {
+                        emit(PremiumQuotePollEvent.Update(shown, stopStatus))
+                        return@flow
+                    }
                 }
             }
-            if (attempt == maxPolls) {
-                VehicleApiLogger.d("premium_summary still pending after $maxPolls polls: loading partial list")
-            } else {
-                delay(pollInterval)
-            }
+            hits++
+            val wait = premiumPollDelay(elapsed, fastInterval, fastPhase, slowInterval)
+            delay(wait)
+            elapsed += wait
         }
-        return premiumList(searchReferenceNumber)
     }
 
     /** Shared POST + logging + error handling for the search-reference quote APIs. */
@@ -542,6 +588,20 @@ open class CarInsuranceRepository @Inject constructor(
     )
 }
 
-/** premium_summary polling: every 2 s for up to 60 s while insurers answer. */
-internal val PREMIUM_POLL_INTERVAL: Duration = 2.seconds
-internal const val PREMIUM_MAX_POLLS = 30
+/**
+ * premium_list_db polling: calls 1 s apart for the first 15 s (insurers answer in ~9 s), then 3 s
+ * apart, for up to 60 s, stopping after 3 failures in a row.
+ */
+internal val PREMIUM_POLL_FAST_INTERVAL: Duration = 1.seconds
+internal val PREMIUM_POLL_FAST_PHASE: Duration = 15.seconds
+internal val PREMIUM_POLL_SLOW_INTERVAL: Duration = 3.seconds
+internal val PREMIUM_POLL_MAX_DURATION: Duration = 60.seconds
+internal const val PREMIUM_POLL_MAX_FAILURES = 3
+
+/** Wait before the next premium_list_db call, given the time already spent polling. */
+internal fun premiumPollDelay(
+    elapsed: Duration,
+    fastInterval: Duration = PREMIUM_POLL_FAST_INTERVAL,
+    fastPhase: Duration = PREMIUM_POLL_FAST_PHASE,
+    slowInterval: Duration = PREMIUM_POLL_SLOW_INTERVAL
+): Duration = if (elapsed < fastPhase) fastInterval else slowInterval

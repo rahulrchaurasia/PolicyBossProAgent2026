@@ -28,7 +28,9 @@ import com.policyboss.policybosspro.feature.carInsurance.data.model.PremiumSearc
 import com.policyboss.policybosspro.feature.carInsurance.data.model.PremiumSummaryResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.model.DeclinedInsurer
 import com.policyboss.policybosspro.feature.carInsurance.model.MotorQuote
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumPollStatus
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumProgress
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuotePollEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuoteList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,8 +101,8 @@ fun samplePremiumQuoteList(searchReference: String = "SRN-11380001") = PremiumQu
     crn = searchReference.removePrefix("SRN-"),
     progress = PremiumProgress(status = PremiumProgress.STATUS_COMPLETE, total = 3, pending = 0, success = 2, fail = 1),
     quotes = listOf(
-        MotorQuote(id = "ARN-IFFCO", insurerName = "IFFCO Tokio", finalPremium = 2471, totalEarnings = 0, buyNowUrl = "https://example.test/iffco"),
-        MotorQuote(id = "ARN-BAJAJ", insurerName = "Bajaj Allianz", finalPremium = 4031, totalEarnings = 0, buyNowUrl = "https://example.test/bajaj")
+        MotorQuote(id = "ARN-IFFCO", insurerId = 7, insurerName = "IFFCO Tokio", finalPremium = 2471, totalEarnings = 0, buyNowUrl = "https://example.test/iffco"),
+        MotorQuote(id = "ARN-BAJAJ", insurerId = 1, insurerName = "Bajaj Allianz", finalPremium = 4031, totalEarnings = 0, buyNowUrl = "https://example.test/bajaj")
     ),
     declinedInsurers = listOf(DeclinedInsurer(4, "Future Generali", null, "LM009", "Vehicle Underwriting Restriction")),
     minIdv = 0,
@@ -168,7 +170,8 @@ open class FakeCarInsuranceRepository(
     },
     private val premiumQuotes: suspend (String) -> Resource<PremiumQuoteList> = { srn ->
         Resource.Success(samplePremiumQuoteList(srn))
-    }
+    },
+    private val premiumPollEvents: ((String) -> Flow<PremiumQuotePollEvent>)? = null
 ) : CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson, VehicleInfoSessionProvider()) {
     var vehicleInfoCalls = 0
         private set
@@ -212,18 +215,29 @@ open class FakeCarInsuranceRepository(
         return premium(input)
     }
 
-    /** Search references passed to premium_summary / premium_list_db. */
+    /** Search references passed to premium_list_db polling. */
     val premiumQuoteSearches = mutableListOf<String>()
 
-    override suspend fun awaitPremiumQuotes(
+    /**
+     * Default: one premium_list_db answer, already complete. Tests that need progressive
+     * updates pass [premiumPollEvents].
+     */
+    override fun pollPremiumQuotes(
         searchReferenceNumber: String,
-        pollInterval: kotlin.time.Duration,
-        maxPolls: Int,
-        onProgress: suspend (PremiumProgress) -> Unit
-    ): Resource<PremiumQuoteList> {
+        fastInterval: kotlin.time.Duration,
+        fastPhase: kotlin.time.Duration,
+        slowInterval: kotlin.time.Duration,
+        maxDuration: kotlin.time.Duration,
+        maxConsecutiveFailures: Int
+    ): Flow<PremiumQuotePollEvent> {
         premiumQuoteSearches += searchReferenceNumber
-        onProgress(PremiumProgress(status = "pending", total = 3, pending = 1))
-        return premiumQuotes(searchReferenceNumber)
+        premiumPollEvents?.let { return it(searchReferenceNumber) }
+        return kotlinx.coroutines.flow.flow {
+            when (val result = premiumQuotes(searchReferenceNumber)) {
+                is Resource.Success -> emit(PremiumQuotePollEvent.Update(result.data, PremiumPollStatus.COMPLETE))
+                is Resource.Error -> emit(PremiumQuotePollEvent.Failed(result.message))
+            }
+        }
     }
 
     override suspend fun getFuelVariants(modelId: String, makeName: String): Resource<FuelVariantCatalog> {

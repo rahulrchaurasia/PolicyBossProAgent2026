@@ -30,6 +30,27 @@ data class DeclinedInsurer(
     val reason: String
 )
 
+/** Where the premium_list_db polling stands. */
+enum class PremiumPollStatus {
+    /** Summary.Status is still pending; more insurers may answer. */
+    POLLING,
+    /** Summary.Status is complete. */
+    COMPLETE,
+    /** The polling time limit was reached while still pending. */
+    TIMED_OUT,
+    /** Several calls in a row failed after plans were already shown. */
+    STOPPED_ON_ERROR
+}
+
+/** One step of premium_list_db polling. */
+sealed interface PremiumQuotePollEvent {
+    /** Latest merged snapshot of every insurer that has answered so far. */
+    data class Update(val quotes: PremiumQuoteList, val status: PremiumPollStatus) : PremiumQuotePollEvent
+
+    /** The very first call failed, so there is nothing to show. */
+    data class Failed(val message: String) : PremiumQuotePollEvent
+}
+
 /** Parsed `premium_list_db` result for the quote results screen. */
 @Immutable
 data class PremiumQuoteList(
@@ -41,4 +62,19 @@ data class PremiumQuoteList(
     val declinedInsurers: List<DeclinedInsurer>,
     val minIdv: Int,
     val maxIdv: Int
-)
+) {
+    /**
+     * Each premium_list_db response is a full snapshot, so the newer one wins. Insurers that were
+     * quoted before but are missing from [newer] are kept, so a card never disappears mid-poll.
+     */
+    fun mergedWith(newer: PremiumQuoteList): PremiumQuoteList {
+        val newerIds = newer.quotes.mapNotNull { it.insurerId }.toSet() +
+            newer.declinedInsurers.map { it.insurerId }.toSet()
+        val keptQuotes = quotes.filter { it.insurerId != null && it.insurerId !in newerIds }
+        val keptDeclined = declinedInsurers.filter { it.insurerId !in newerIds }
+        return newer.copy(
+            quotes = (newer.quotes + keptQuotes).sortedBy { it.finalPremium },
+            declinedInsurers = newer.declinedInsurers + keptDeclined
+        )
+    }
+}

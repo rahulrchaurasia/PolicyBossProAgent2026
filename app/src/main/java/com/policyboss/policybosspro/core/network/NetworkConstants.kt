@@ -40,7 +40,7 @@ object NetworkConstants {
      * Primary active SESSION_ID used across all quote request bodies.
      * Easily modify this value here whenever a new daily/session key is issued.
      */
-    const val SESSION_ID = "-HFNrqwMtteX9alZq9lc1OBqU-h0Wv35"
+    const val SESSION_ID = "AuqqYwJ2AqupA-6eab1AmR5nfHrsa4JC"
 
     /**
      * Network request timeouts in seconds.

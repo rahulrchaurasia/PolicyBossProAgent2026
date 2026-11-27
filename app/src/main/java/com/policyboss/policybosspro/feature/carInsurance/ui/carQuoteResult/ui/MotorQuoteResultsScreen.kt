@@ -1,5 +1,8 @@
 package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateIntAsState
 import com.policyboss.policybosspro.ui.theme.titleMediumBold
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.background
@@ -53,6 +56,8 @@ import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FeedbackDialog
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FilterBottomSheet
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.DeclinedInsurersCard
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteFetchTimedOutNote
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteFetchingFooter
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.InsurerQuoteCard
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteResultsBottomBar
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteSummaryCard
@@ -242,8 +247,14 @@ fun MotorQuoteResultsScreen(
                                 }
                             }
 
+                            // Counts up as polling binds more plans
+                            val animatedPlansCount by animateIntAsState(
+                                targetValue = uiState.totalQuotesCount,
+                                animationSpec = tween(durationMillis = 600),
+                                label = "plansFound"
+                            )
                             Text(
-                                text = plansFoundText(uiState.totalQuotesCount),
+                                text = plansFoundText(animatedPlansCount),
                                 style = MaterialTheme.typography.titleMediumBold,
                                 color = AppColors.TextPrimary
                             )
@@ -254,6 +265,8 @@ fun MotorQuoteResultsScreen(
                         InsurerQuoteCard(
                             quote = recommended,
                             isZextraBundleEnabled = uiState.isZextraBundleEnabled,
+                            showAddOns = !uiState.isTpOnlyFilter,
+                            showIdv = !uiState.isTpOnlyFilter,
                             isAddOnsExpanded = uiState.expandedAddOnQuoteIds.contains(recommended.id),
                             isCompared = uiState.selectedQuotesForComparison.contains(recommended.id),
                             onToggleAddOnsExpanded = {
@@ -274,7 +287,9 @@ fun MotorQuoteResultsScreen(
                             onPolicyDetailsClick = {
                                 onAction(NewCarAction.OnPolicyDetailsClick(recommended))
                             },
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 16.dp)
                         )
                     }
                 }
@@ -300,6 +315,8 @@ fun MotorQuoteResultsScreen(
                         InsurerQuoteCard(
                             quote = quote,
                             isZextraBundleEnabled = uiState.isZextraBundleEnabled,
+                            showAddOns = !uiState.isTpOnlyFilter,
+                            showIdv = !uiState.isTpOnlyFilter,
                             isAddOnsExpanded = uiState.expandedAddOnQuoteIds.contains(quote.id),
                             isCompared = uiState.selectedQuotesForComparison.contains(quote.id),
                             onToggleAddOnsExpanded = {
@@ -320,7 +337,32 @@ fun MotorQuoteResultsScreen(
                             onPolicyDetailsClick = {
                                 onAction(NewCarAction.OnPolicyDetailsClick(quote))
                             },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                            // New insurers slide in and re-sorted cards animate as polling updates the list
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                // "Loading more" footer while insurers are still answering (premium_list_db polling)
+                if (uiState.isFetchingMoreQuotes) {
+                    item(key = "quotes_fetching_footer") {
+                        QuoteFetchingFooter(
+                            progressText = uiState.premiumProgressText,
+                            progress = uiState.premiumProgressFraction,
+                            skeletonCount = if (uiState.quotes.isEmpty()) 2 else 1,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                } else if (uiState.isQuotesFetchTimedOut) {
+                    item(key = "quotes_timed_out_note") {
+                        QuoteFetchTimedOutNote(
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
                         )
                     }
                 }

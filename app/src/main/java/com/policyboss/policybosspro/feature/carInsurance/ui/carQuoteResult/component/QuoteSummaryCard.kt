@@ -1,5 +1,7 @@
 package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component
 
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,6 +19,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -60,6 +63,17 @@ fun QuoteSummaryCard(
                 .padding(14.dp)
         ) {
             // 1. 3-Stat Row: Quotes, Min. Premiums, Max. Earnings
+            // Numbers count up as polling binds more plans, so every increase is visible
+            val animatedQuotesCount by animateIntAsState(
+                targetValue = uiState.totalQuotesCount,
+                animationSpec = tween(durationMillis = COUNT_UP_MILLIS),
+                label = "quotesCount"
+            )
+            val animatedMinPremium by animateIntAsState(
+                targetValue = uiState.minPremium,
+                animationSpec = tween(durationMillis = COUNT_UP_MILLIS),
+                label = "minPremium"
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -71,7 +85,7 @@ fun QuoteSummaryCard(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = uiState.totalQuotesCount.toString(),
+                        text = animatedQuotesCount.toString(),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppColors.Slate900
@@ -97,7 +111,7 @@ fun QuoteSummaryCard(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "₹${MotorQuote.formatIndianCurrency(uiState.minPremium)}",
+                        text = "₹${MotorQuote.formatIndianCurrency(animatedMinPremium)}",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppColors.Slate900
@@ -275,3 +289,6 @@ private fun QuoteSummaryCardPreview() {
         onNavigateToFilters = {}
     )
 }
+
+/** Duration of the count-up when a summary number changes. */
+private const val COUNT_UP_MILLIS = 600

@@ -68,7 +68,11 @@ fun InsurerQuoteCard(
     onBuyNowClick: () -> Unit,
     onShareClick: () -> Unit,
     onPolicyDetailsClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** TP-only: no add-ons. */
+    showAddOns: Boolean = true,
+    /** TP-only: no car value (IDV). */
+    showIdv: Boolean = true
 ) {
     Surface(
         modifier = modifier
@@ -350,8 +354,8 @@ fun InsurerQuoteCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Expandable Add-ons Section
-            Box(
+            // Expandable Add-ons Section (hidden for TP-only)
+            if (showAddOns) Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
@@ -477,7 +481,7 @@ fun InsurerQuoteCard(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Tier 1 — Highlighted Car Value (IDV) Box (Full Width); hidden when there is no IDV (TP-only)
-                if (quote.idvValue > 0) Box(
+                if (showIdv) Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))

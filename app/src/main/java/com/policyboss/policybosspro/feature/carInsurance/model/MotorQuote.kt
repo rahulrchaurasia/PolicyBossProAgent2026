@@ -13,6 +13,13 @@ data class MotorQuote(
     val insurerLogoUrl: String? = null,
     /** Insurer plan name from the quote API, e.g. `TP`, `Basic`. */
     val planName: String? = null,
+    /** Insurer id from the quote API; one quote per insurer. */
+    val insurerId: Int? = null,
+    /**
+     * RSA + CPA bundle price (`rsa_cpa_bundle_breakup.bundle_final_premium`) for API quotes.
+     * When set, the Zextra Switch adds it to [finalPremium] instead of the demo discount logic.
+     */
+    val zextraBundlePremium: Int? = null,
     val isRecommended: Boolean = false,
     val finalPremium: Int,
     val originalPremium: Int? = null,
@@ -32,6 +39,10 @@ data class MotorQuote(
         get() = formatIndianCurrency(idvValue)
 
     fun effectivePremium(isZextraEnabled: Boolean): Int {
+        zextraBundlePremium?.let { bundle ->
+            // API quote: Zextra Switch on = premium + RSA/CPA bundle
+            return if (isZextraEnabled) finalPremium + bundle else finalPremium
+        }
         return if (isZextraEnabled) {
             finalPremium
         } else {

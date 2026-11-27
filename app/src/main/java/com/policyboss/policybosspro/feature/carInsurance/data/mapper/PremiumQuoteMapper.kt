@@ -1,6 +1,5 @@
 package com.policyboss.policybosspro.feature.carInsurance.data.mapper
 
-import com.policyboss.policybosspro.feature.carInsurance.data.model.InsurerPlanDto
 import com.policyboss.policybosspro.feature.carInsurance.data.model.InsurerPremiumDto
 import com.policyboss.policybosspro.feature.carInsurance.data.model.PremiumListResponseDto
 import com.policyboss.policybosspro.feature.carInsurance.data.model.PremiumListSummaryDto
@@ -34,62 +33,73 @@ fun PremiumListSummaryDto?.toPremiumProgress(): PremiumProgress = PremiumProgres
 )
 
 /**
- * `premium_list_db` -> results-screen model. Every insurer plan becomes one [MotorQuote]
- * (cheapest first); insurers without a plan become [DeclinedInsurer] with their error.
- * Brokerage / Zextra values are not part of this API, so they are left at zero.
+ * A row is a valid plan only when the insurer reported no error and returned a premium:
+ * `Error_Code` blank, `Premium_Breakup` present and `net_premium > 0`.
+ */
+fun InsurerPremiumDto.isValidPlan(): Boolean =
+    errorCode.isNullOrBlank() && (premiumBreakup?.netPremium ?: 0.0) > 0.0
+
+/**
+ * `premium_list_db` -> results-screen model. Every valid insurer row becomes one [MotorQuote]
+ * (one card per insurer, cheapest first); every other row becomes a [DeclinedInsurer].
+ * Brokerage is not part of this API, so it is left at zero.
  */
 fun PremiumListResponseDto.toPremiumQuoteList(searchReferenceNumber: String): PremiumQuoteList {
-    val quotes = response
-        .flatMap { insurer -> insurer.planList.mapNotNull { plan -> plan.toMotorQuote(insurer) } }
-        .sortedBy { it.finalPremium }
-
-    val quotedInsurerIds = response.filter { it.planList.isNotEmpty() }.mapNotNull { it.insurerId }.toSet()
-    val declined = response
-        .filter { it.planList.isEmpty() && it.insurerId !in quotedInsurerIds }
-        .map { it.toDeclinedInsurer(errorMaster) }
-
     val minIdv = summary?.idvMin?.roundToInt() ?: 0
     val maxIdv = summary?.idvMax?.roundToInt() ?: 0
+
+    val (validRows, otherRows) = response.partition { it.isValidPlan() }
+    val quotes = validRows
+        .distinctBy { it.insurerId ?: it.insurer?.insurerId ?: it.serviceLogUniqueId }
+        .map { it.toMotorQuote(minIdv, maxIdv) }
+        .sortedBy { it.finalPremium }
+    val quotedIds = quotes.mapNotNull { it.insurerId }.toSet()
+    val declined = otherRows
+        .filter { (it.insurerId ?: it.insurer?.insurerId) !in quotedIds }
+        .distinctBy { it.insurerId ?: it.insurer?.insurerId }
+        .map { it.toDeclinedInsurer(errorMaster) }
 
     return PremiumQuoteList(
         searchReferenceNumber = summary?.requestUniqueId.orEmpty().ifBlank { searchReferenceNumber },
         crn = summary?.pbCrn?.takeIf { it > 0 }?.toString().orEmpty(),
         progress = summary.toPremiumProgress(),
-        quotes = quotes.map { it.copy(minIdv = minIdv, maxIdv = maxIdv) },
+        quotes = quotes,
         declinedInsurers = declined,
         minIdv = minIdv,
         maxIdv = maxIdv
     )
 }
 
-private fun InsurerPlanDto.toMotorQuote(insurer: InsurerPremiumDto): MotorQuote? {
-    val premium = (fullPremiumBreakup?.finalPremium ?: insurer.premiumBreakup?.finalPremium)
-        ?.roundToInt()
-        ?.takeIf { it > 0 }
-        ?: return null
-    val insurerId = insurer.insurerId ?: insurer.insurer?.insurerId ?: 0
-    val idv = insurer.customRequest?.get("vehicle_expected_idv").toIntOrZero()
+private fun InsurerPremiumDto.toMotorQuote(minIdv: Int, maxIdv: Int): MotorQuote {
+    val breakup = premiumBreakup
+    val plan = planList.firstOrNull()
+    val insurerId = insurerId ?: insurer?.insurerId ?: 0
+    val finalPremium = (breakup?.finalPremium ?: 0.0).roundToInt()
 
     return MotorQuote(
-        id = serviceLogUniqueId.orEmpty().ifBlank { "INS-$insurerId-${planId ?: 0}" },
-        insurerName = insurer.displayName(),
-        insurerLogoType = insurer.insurer?.code.orEmpty(),
-        insurerLogoUrl = insurer.insurer?.logoUrl,
-        planName = planName,
+        id = serviceLogUniqueId.orEmpty()
+            .ifBlank { plan?.serviceLogUniqueId.orEmpty() }
+            .ifBlank { "INS-$insurerId" },
+        insurerName = displayName(),
+        insurerLogoType = insurer?.code.orEmpty(),
+        insurerLogoUrl = insurer?.logoUrl,
+        planName = plan?.planName ?: "TP",
+        insurerId = insurerId,
         isRecommended = false,
-        finalPremium = premium,
+        finalPremium = finalPremium,
         originalPremium = null,
         zextraDiscountAmount = null,
+        zextraBundlePremium = (breakup?.rsaCpaBundle?.finalPremium ?: 0.0).roundToInt(),
         totalEarnings = 0,
         earningsBreakdown = NO_EARNINGS,
-        addOns = addonBreakup.toAddOns(),
+        addOns = plan?.addonBreakup.orEmpty().toAddOns(),
         benefits = emptyList(),
-        idvValue = idv,
-        minIdv = 0,
-        maxIdv = 0,
+        idvValue = customRequest?.get("vehicle_expected_idv").toIntOrZero(),
+        minIdv = minIdv,
+        maxIdv = maxIdv,
         zextraSwitchCoverPrice = 0,
         policyDetailsUrl = null,
-        buyNowUrl = proposalUrl
+        buyNowUrl = plan?.proposalUrl
     )
 }
 

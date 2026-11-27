@@ -1,5 +1,8 @@
 package com.policyboss.policybosspro.feature.carInsurance.viewmodel
 
+import kotlinx.coroutines.CompletableDeferred
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuotePollEvent
+import com.policyboss.policybosspro.feature.carInsurance.model.PremiumPollStatus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.policyboss.policybosspro.core.AppConfig
@@ -28,7 +31,6 @@ import com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumInitiateResult
 import com.policyboss.policybosspro.feature.carInsurance.model.VehicleInfoDomain
 import com.policyboss.policybosspro.feature.carInsurance.model.toPremiumInitiateInput
-import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuoteList
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteFetchState
 import com.policyboss.policybosspro.feature.carInsurance.model.QuoteLoadingUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.MotorQuoteFilterData
@@ -65,6 +67,8 @@ class NewCarViewModel @Inject constructor(
     private var initializedMode: CarEntryMode? = null
     private var initializedCarNumber: String? = null
     private var quoteJob: Job? = null
+    /** premium_list_db polling; keeps running on the results screen after the loader closes. */
+    private var premiumPollJob: Job? = null
 
     /** Last successful vahan lookup; drives `premium_initiate`. Cleared whenever the form resets. */
     private var vehicleInfo: VehicleInfoDomain? = null
@@ -273,6 +277,7 @@ class NewCarViewModel @Inject constructor(
         cancelVehicleLookupJob()
         quoteJob?.cancel()
         quoteJob = null
+        cancelPremiumPolling()
         initializedMode = null
         initializedCarNumber = null
         _uiState.update {
@@ -798,6 +803,10 @@ class NewCarViewModel @Inject constructor(
                 cancelQuoteLoading()
             }
 
+            is NewCarAction.OnLeaveQuoteResults -> {
+                cancelPremiumPolling()
+            }
+
             is NewCarAction.OnQuoteNavigationHandled -> {
                 _uiState.update {
                     if (it.quoteState is QuoteFetchState.Success) {
@@ -1196,11 +1205,13 @@ class NewCarViewModel @Inject constructor(
         }
 
         drainPendingQuoteLoadingEvents()
+        cancelPremiumPolling()
 
         _uiState.update {
             it.copy(
                 quoteState = QuoteFetchState.Loading,
                 premiumInitiate = null,
+                premiumPollStatus = null,
                 premiumProgress = null,
                 premiumQuoteList = null,
                 errorMessage = null
@@ -1329,11 +1340,15 @@ class NewCarViewModel @Inject constructor(
     }
 
     /**
-     * premium_initiate gave a search reference: stay on the loader while premium_summary is
-     * polled ("x of y insurers responded"), then load premium_list_db and open the results.
+     * premium_initiate gave a search reference: poll premium_list_db. The loader stays up only
+     * until the first answer; results then open and keep updating while insurers respond.
+     * Polling runs in [premiumPollJob] so it outlives this loader job; cancelling this job before
+     * the first answer (loader closed) cancels the polling too.
      */
     private suspend fun onPremiumInitiated(result: PremiumInitiateResult) {
-        _uiState.update { it.copy(premiumInitiate = result, crnNumber = result.crn, premiumProgress = null) }
+        _uiState.update {
+            it.copy(premiumInitiate = result, crnNumber = result.crn, premiumProgress = null, premiumPollStatus = null)
+        }
 
         val searchReference = result.requestUniqueId
         if (searchReference.isBlank()) {
@@ -1341,30 +1356,87 @@ class NewCarViewModel @Inject constructor(
             return
         }
 
-        val listResult = repository.awaitPremiumQuotes(searchReference) { progress ->
-            _uiState.update { it.copy(premiumProgress = progress) }
+        val firstAnswer = CompletableDeferred<Unit>()
+        cancelPremiumPolling()
+        val pollJob = viewModelScope.launch {
+            try {
+                var isFirst = true
+                repository.pollPremiumQuotes(searchReference).collect { event ->
+                    when (event) {
+                        is PremiumQuotePollEvent.Failed -> showQuoteError(event.message)
+                        is PremiumQuotePollEvent.Update -> applyPremiumQuotes(result, event, isFirst)
+                    }
+                    isFirst = false
+                    firstAnswer.complete(Unit)
+                }
+            } finally {
+                firstAnswer.complete(Unit)
+            }
         }
-        when (listResult) {
-            is Resource.Error -> showQuoteError(listResult.message)
-            is Resource.Success -> onPremiumQuotesLoaded(result, listResult.data)
+        premiumPollJob = pollJob
+        try {
+            firstAnswer.await()
+        } catch (e: CancellationException) {
+            pollJob.cancel()
+            throw e
         }
     }
 
-    private suspend fun onPremiumQuotesLoaded(initiate: PremiumInitiateResult, list: PremiumQuoteList) {
+    /** Binds one premium_list_db snapshot; the first one also opens the results screen. */
+    private suspend fun applyPremiumQuotes(
+        initiate: PremiumInitiateResult,
+        update: PremiumQuotePollEvent.Update,
+        isFirst: Boolean
+    ) {
+        val list = update.quotes
         val quotes = list.quotes.mapIndexed { index, quote -> quote.copy(isRecommended = index == 0) }
+        val quoteIds = quotes.map { it.id }.toSet()
         val quoteId = initiate.requestUniqueId
-        _uiState.update {
-            it.copy(
-                quoteState = QuoteFetchState.Success(quoteId = quoteId, quoteUrl = null, quotesCount = quotes.size),
-                crnNumber = list.crn.ifBlank { initiate.crn },
-                premiumProgress = null,
+        val isPolling = update.status == PremiumPollStatus.POLLING
+
+        _uiState.update { current ->
+            current.copy(
+                quoteState = if (isFirst) {
+                    QuoteFetchState.Success(quoteId = quoteId, quoteUrl = null, quotesCount = quotes.size)
+                } else {
+                    current.quoteState
+                },
+                crnNumber = initiate.crn.ifBlank { list.crn },
+                premiumProgress = list.progress.takeIf { isPolling },
+                premiumPollStatus = update.status,
                 premiumQuoteList = list,
                 quotes = quotes,
-                expandedAddOnQuoteIds = quotes.firstOrNull()?.let { quote -> setOf(quote.id) } ?: emptySet(),
+                // Keep what the agent expanded or ticked; new cards arrive collapsed
+                expandedAddOnQuoteIds = if (isFirst) {
+                    quotes.firstOrNull()?.let { setOf(it.id) } ?: emptySet()
+                } else {
+                    current.expandedAddOnQuoteIds.intersect(quoteIds)
+                },
+                // Zextra Switch follows the CPA choice shown on the results screen
+                isZextraBundleEnabled = if (isFirst) {
+                    current.cpaCoverageOption == CpaCoverageOption.ZEXTRA_SWITCH
+                } else {
+                    current.isZextraBundleEnabled
+                },
                 errorMessage = null
             )
         }
-        _quoteLoadingEvent.send(QuoteLoadingUiEvent.NavigateToQuotes(quoteId = quoteId, quoteUrl = null))
+        if (isFirst) {
+            _quoteLoadingEvent.send(QuoteLoadingUiEvent.NavigateToQuotes(quoteId = quoteId, quoteUrl = null))
+        }
+    }
+
+    /** Stops premium_list_db polling (new search, loader closed, results left). */
+    private fun cancelPremiumPolling() {
+        premiumPollJob?.cancel()
+        premiumPollJob = null
+        _uiState.update { state ->
+            if (state.premiumPollStatus == PremiumPollStatus.POLLING) {
+                state.copy(premiumPollStatus = null, premiumProgress = null)
+            } else {
+                state
+            }
+        }
     }
 
     private fun showQuoteError(message: String) {
@@ -1390,6 +1462,7 @@ class NewCarViewModel @Inject constructor(
     private fun cancelQuoteLoading() {
         quoteJob?.cancel()
         quoteJob = null
+        cancelPremiumPolling()
         cancelVehicleLookupJob()
         drainPendingQuoteLoadingEvents()
 

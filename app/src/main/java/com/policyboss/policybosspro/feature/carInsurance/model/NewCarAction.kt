@@ -67,6 +67,8 @@ sealed interface NewCarAction {
     data object OnGetQuotesClick : NewCarAction
     data object OnRetryGetQuotes : NewCarAction
     data object OnCancelQuoteLoading : NewCarAction
+    /** Results screen left (back / edit vehicle): stop premium_list_db polling. */
+    data object OnLeaveQuoteResults : NewCarAction
     data object OnQuoteNavigationHandled : NewCarAction
     data object OnBackClick : NewCarAction
 
