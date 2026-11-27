@@ -201,5 +201,45 @@ class MotorQuoteResultsTest {
 
         job.cancel()
     }
+
+    @Test
+    fun `default CPA toggle is ZEXTRA_SWITCH for Individual and NO_CPA for Company`() {
+        val vm = NewCarViewModel(fakeRepository())
+        vm.initForMode(com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode.WITHOUT_CAR_NUMBER)
+
+        // Default is Individual
+        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.INDIVIDUAL, vm.uiState.value.ownershipType)
+        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.ZEXTRA_SWITCH, vm.uiState.value.cpaCoverageOption)
+        assertTrue(vm.uiState.value.isZextraBundleEnabled)
+
+        // Select Company
+        vm.onAction(NewCarAction.OnOwnershipSelected(com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.COMPANY))
+        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.COMPANY, vm.uiState.value.ownershipType)
+        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.NO_CPA, vm.uiState.value.cpaCoverageOption)
+        assertFalse(vm.uiState.value.isZextraBundleEnabled)
+        assertFalse(vm.uiState.value.draftQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+        assertFalse(vm.uiState.value.appliedQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+
+        // Switching back to Individual restores ZEXTRA_SWITCH
+        vm.onAction(NewCarAction.OnOwnershipSelected(com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.INDIVIDUAL))
+        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.INDIVIDUAL, vm.uiState.value.ownershipType)
+        assertEquals(com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.ZEXTRA_SWITCH, vm.uiState.value.cpaCoverageOption)
+        assertTrue(vm.uiState.value.isZextraBundleEnabled)
+    }
+
+    @Test
+    fun `Company registration prevents selecting owner_driver_pa in filter`() {
+        val vm = NewCarViewModel(fakeRepository())
+        vm.initForMode(com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode.WITHOUT_CAR_NUMBER)
+        vm.onAction(NewCarAction.OnOwnershipSelected(com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.COMPANY))
+
+        // Attempt to toggle owner_driver_pa
+        vm.onAction(NewCarAction.OnToggleDraftLiabilityCover("owner_driver_pa"))
+        assertFalse(vm.uiState.value.draftQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+
+        // Can toggle other covers
+        vm.onAction(NewCarAction.OnToggleDraftLiabilityCover("paid_driver_liability"))
+        assertTrue(vm.uiState.value.draftQuoteFilter.selectedLiabilityCoverIds.contains("paid_driver_liability"))
+    }
 }
 

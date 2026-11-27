@@ -377,3 +377,19 @@ private fun LiabilityCoversSectionTpPreview() {
         showAccessories = false
     )
 }
+
+@Preview(name = "Additional Cover - Company (3 covers, no owner driver)", showBackground = true, widthDp = 260)
+@Composable
+private fun LiabilityCoversSectionCompanyPreview() {
+    LiabilityCoversSection(
+        selectedLiabilityCoverIds = emptySet(),
+        selectedUnNamedPassengerCover = "No",
+        electricalAccessoriesAmount = "0",
+        nonElectricalAccessoriesAmount = "0",
+        items = MotorQuoteFilterData.additionalCoverItems.filter { it.id != "owner_driver_pa" },
+        onToggleLiabilityCover = {},
+        onSelectUnNamedPassengerCover = {},
+        onUpdateElectricalAccessories = {},
+        onUpdateNonElectricalAccessories = {}
+    )
+}

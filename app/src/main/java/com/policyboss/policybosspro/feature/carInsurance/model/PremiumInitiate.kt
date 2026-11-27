@@ -22,7 +22,8 @@ data class PremiumInitiateInput(
      * Value for `is_claim_exists`: the "made any claim" radio for OD / Comprehensive,
      * always true for TP Only, false when there is no existing policy.
      */
-    val hasClaim: Boolean = false
+    val hasClaim: Boolean = false,
+    val isPaOd: Boolean = false
 )
 
 fun NewCarUiState.toPremiumInitiateInput(vehicle: VehicleInfoDomain): PremiumInitiateInput =
@@ -39,7 +40,8 @@ fun NewCarUiState.toPremiumInitiateInput(vehicle: VehicleInfoDomain): PremiumIni
             !shouldShowExpiryDate -> false // no existing policy (or new car)
             policyType == PolicyType.TP_ONLY -> true
             else -> shouldShowClaimAndNcb && hasClaim
-        }
+        },
+        isPaOd = if (isCompany) false else appliedQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa")
     )
 
 /**

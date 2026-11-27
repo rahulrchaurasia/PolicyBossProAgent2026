@@ -170,4 +170,40 @@ class MotorQuoteFilterAdditionalCoverTest {
         val clampedValid = validValue.coerceIn(minIdv, maxIdv)
         assertEquals(validValue, clampedValid)
     }
+
+    @Test
+    fun `Individual registration shows all 4 additional cover items including owner driver pa`() {
+        val individualState = com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState(
+            ownershipType = com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.INDIVIDUAL
+        )
+        assertFalse(individualState.isCompany)
+        assertTrue(individualState.isIndividual)
+        assertEquals(4, individualState.visibleAdditionalCoverItems.size)
+        assertTrue(individualState.visibleAdditionalCoverItems.any { it.id == "owner_driver_pa" })
+    }
+
+    @Test
+    fun `Company registration shows only 3 additional cover items excluding owner driver pa`() {
+        val companyState = com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState(
+            ownershipType = com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.COMPANY
+        )
+        assertTrue(companyState.isCompany)
+        assertFalse(companyState.isIndividual)
+        assertEquals(3, companyState.visibleAdditionalCoverItems.size)
+        assertFalse(companyState.visibleAdditionalCoverItems.any { it.id == "owner_driver_pa" })
+        assertEquals(
+            listOf("paid_driver_liability", "paid_driver_pa", "limited_tp_damage"),
+            companyState.visibleAdditionalCoverItems.map { it.id }
+        )
+    }
+
+    @Test
+    fun `Company registration sanitizes owner driver pa from filter state`() {
+        val companyFilter = QuoteFilterState(
+            selectedLiabilityCoverIds = setOf("owner_driver_pa", "paid_driver_liability")
+        ).sanitizeForOwnership(isCompany = true)
+
+        assertFalse(companyFilter.isOwnerDriverPaCover)
+        assertEquals(setOf("paid_driver_liability"), companyFilter.selectedLiabilityCoverIds)
+    }
 }

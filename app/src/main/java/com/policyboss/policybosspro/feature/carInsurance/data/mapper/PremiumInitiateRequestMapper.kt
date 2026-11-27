@@ -51,6 +51,7 @@ fun buildPremiumInitiateRequest(
         },
         vehicleNcbCurrent = input.ncbPercent.filter { it.isDigit() }.ifBlank { "0" },
         isClaimExists = input.hasClaim.yesNo(),
+        isPaOd = if (input.ownershipType == OwnershipType.COMPANY) NO else input.isPaOd.yesNo(),
         isFastlaneRto = premium.isFastlaneRto.yesNo(),
         registrationNo = registrationNo,
         regnoRtoCode = registrationNo.split('-').take(2).takeIf { it.size == 2 }?.joinToString("-").orEmpty(),

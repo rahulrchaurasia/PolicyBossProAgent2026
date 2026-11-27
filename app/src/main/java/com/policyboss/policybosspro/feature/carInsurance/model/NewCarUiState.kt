@@ -167,8 +167,8 @@ data class NewCarUiState(
     // ==========================================
     val quotes: List<MotorQuote> = emptyList(),
     val quoteValidUpto: String? = null,
-    val isZextraBundleEnabled: Boolean = true,
-    val cpaNoticeText: String = "CPA: Don't have Personal Accident cover",
+    val isZextraBundleEnabled: Boolean = (ownershipType == OwnershipType.INDIVIDUAL),
+    val cpaNoticeText: String = if (ownershipType == OwnershipType.COMPANY) "CPA: Don't have Personal Accident cover" else "Special Zextra Bundle (CPA + RSA) included",
     val expandedAddOnQuoteIds: Set<String> = setOf("ACKO-01"),
     val selectedAddOnsByQuoteId: Map<String, Set<String>> = emptyMap(),
     val selectedQuotesForComparison: Set<String> = emptySet(),
@@ -181,11 +181,11 @@ data class NewCarUiState(
 
     // Filter Screen State
     val selectedFilterCategory: FilterCategory = FilterCategory.SET_IDV,
-    val appliedQuoteFilter: QuoteFilterState = QuoteFilterState(),
-    val draftQuoteFilter: QuoteFilterState = QuoteFilterState(),
+    val appliedQuoteFilter: QuoteFilterState = if (ownershipType == OwnershipType.COMPANY) QuoteFilterState(selectedLiabilityCoverIds = emptySet()) else QuoteFilterState(),
+    val draftQuoteFilter: QuoteFilterState = if (ownershipType == OwnershipType.COMPANY) QuoteFilterState(selectedLiabilityCoverIds = emptySet()) else QuoteFilterState(),
 
     // Quote Controls & CPA Options State
-    val cpaCoverageOption: CpaCoverageOption = CpaCoverageOption.INSURER_CPA,
+    val cpaCoverageOption: CpaCoverageOption = if (ownershipType == OwnershipType.COMPANY) CpaCoverageOption.NO_CPA else CpaCoverageOption.ZEXTRA_SWITCH,
     val crnNumber: String = "12678184",
     val showVariantSheet: Boolean = false,
     val infoDialogTitle: String? = null,
@@ -230,6 +230,19 @@ data class NewCarUiState(
 
     val isVehicleLookupInProgress: Boolean
         get() = vehicleLookupState !is VehicleLookupState.Idle
+
+    val isCompany: Boolean
+        get() = ownershipType == OwnershipType.COMPANY
+
+    val isIndividual: Boolean
+        get() = ownershipType == OwnershipType.INDIVIDUAL
+
+    val visibleAdditionalCoverItems: List<com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.LiabilityCoverItem>
+        get() = if (isCompany) {
+            com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.MotorQuoteFilterData.additionalCoverItems.filter { it.id != "owner_driver_pa" }
+        } else {
+            com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.MotorQuoteFilterData.additionalCoverItems
+        }
 
     val displayCustomerFirstName: String
         get() = customerName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()

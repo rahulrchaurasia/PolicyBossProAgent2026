@@ -108,12 +108,22 @@ data class QuoteFilterState(
         if (additionalCoverOnly) additionalCoverFilterCount else activeFilterCount
 
     /** Additional Cover cleared, every other category untouched (Reset in TP-only mode). */
-    fun resetAdditionalCover(): QuoteFilterState = copy(
+    fun resetAdditionalCover(isCompany: Boolean = false): QuoteFilterState = copy(
         selectedLiabilityCoverIds = emptySet(),
         selectedUnNamedPassengerCover = "No",
         electricalAccessoriesAmount = "0",
         nonElectricalAccessoriesAmount = "0"
     )
+
+    val isOwnerDriverPaCover: Boolean
+        get() = selectedLiabilityCoverIds.contains("owner_driver_pa")
+
+    fun sanitizeForOwnership(isCompany: Boolean): QuoteFilterState =
+        if (isCompany && selectedLiabilityCoverIds.contains("owner_driver_pa")) {
+            copy(selectedLiabilityCoverIds = selectedLiabilityCoverIds - "owner_driver_pa")
+        } else {
+            this
+        }
 
     val activeFilterCount: Int
         get() {

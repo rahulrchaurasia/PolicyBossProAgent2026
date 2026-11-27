@@ -10,6 +10,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteRequ
 import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteResponse
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.CarInsuranceRepository
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
+import com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
@@ -429,7 +430,15 @@ class NewCarQuoteLoadingTest {
         vm.onAction(NewCarAction.OnGetQuotesClick)
         advanceUntilIdle()
 
-        // Default CPA choice is Insurer CPA, so the Zextra bundle is not added
+        // For Individual registration, default CPA choice is Zextra Switch (ON)
+        assertTrue(vm.uiState.value.isZextraBundleEnabled)
+        assertEquals(CpaCoverageOption.ZEXTRA_SWITCH, vm.uiState.value.cpaCoverageOption)
+
+        // Switching to Insurer CPA or No CPA disables Zextra bundle
+        vm.onAction(NewCarAction.OnSelectCpaCoverageOption(CpaCoverageOption.INSURER_CPA))
+        assertFalse(vm.uiState.value.isZextraBundleEnabled)
+
+        vm.onAction(NewCarAction.OnSelectCpaCoverageOption(CpaCoverageOption.NO_CPA))
         assertFalse(vm.uiState.value.isZextraBundleEnabled)
     }
 

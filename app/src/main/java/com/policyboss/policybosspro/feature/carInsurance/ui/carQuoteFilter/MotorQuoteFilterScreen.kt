@@ -101,6 +101,7 @@ fun MotorQuoteFilterScreen(
                                 electricalAccessoriesAmount = uiState.draftQuoteFilter.electricalAccessoriesAmount,
                                 nonElectricalAccessoriesAmount = uiState.draftQuoteFilter.nonElectricalAccessoriesAmount,
                                 showAccessories = uiState.showAccessoriesFilter,
+                                items = uiState.visibleAdditionalCoverItems,
                                 onToggleLiabilityCover = { onAction(NewCarAction.OnToggleDraftLiabilityCover(it)) },
                                 onSelectUnNamedPassengerCover = {
                                     onAction(NewCarAction.OnSelectDraftUnNamedPassengerCover(it))
@@ -164,6 +165,17 @@ private fun MotorQuoteFilterScreenPreview() {
 private fun MotorQuoteFilterScreenTpPreview() {
     MotorQuoteFilterScreen(
         uiState = NewCarUiState(policyType = PolicyType.TP_ONLY),
+        onAction = {},
+        onCloseClick = {},
+        onApplyClick = {}
+    )
+}
+
+@Preview(name = "Filter - Company Registration", showBackground = true, widthDp = 375, heightDp = 812)
+@Composable
+private fun MotorQuoteFilterScreenCompanyPreview() {
+    MotorQuoteFilterScreen(
+        uiState = NewCarUiState(ownershipType = com.policyboss.policybosspro.feature.carInsurance.model.OwnershipType.COMPANY),
         onAction = {},
         onCloseClick = {},
         onApplyClick = {}

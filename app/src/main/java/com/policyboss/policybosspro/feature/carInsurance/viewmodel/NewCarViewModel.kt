@@ -145,6 +145,11 @@ class NewCarViewModel @Inject constructor(
                 selectedRto = null,
                 rtoOptions = CarInsuranceData.rtoOptions,
                 ownershipType = OwnershipType.INDIVIDUAL,
+                cpaCoverageOption = CpaCoverageOption.ZEXTRA_SWITCH,
+                isZextraBundleEnabled = true,
+                cpaNoticeText = "Special Zextra Bundle (CPA + RSA) included",
+                draftQuoteFilter = QuoteFilterState(),
+                appliedQuoteFilter = QuoteFilterState(),
                 selectedModel = null,
                 selectedVariant = null,
                 selectedFuel = null,
@@ -490,7 +495,41 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnOwnershipSelected -> {
-                _uiState.update { it.copy(ownershipType = action.type) }
+                val defaultCpa = if (action.type == OwnershipType.COMPANY) {
+                    CpaCoverageOption.NO_CPA
+                } else {
+                    CpaCoverageOption.ZEXTRA_SWITCH
+                }
+                val zextraEnabled = (defaultCpa == CpaCoverageOption.ZEXTRA_SWITCH)
+                val notice = when (defaultCpa) {
+                    CpaCoverageOption.ZEXTRA_SWITCH -> "Special Zextra Bundle (CPA + RSA) included"
+                    CpaCoverageOption.INSURER_CPA -> "Insurer CPA included"
+                    CpaCoverageOption.NO_CPA -> "CPA: Don't have Personal Accident cover"
+                }
+                _uiState.update { current ->
+                    val sanitizedDraft = if (action.type == OwnershipType.COMPANY) {
+                        current.draftQuoteFilter.copy(
+                            selectedLiabilityCoverIds = current.draftQuoteFilter.selectedLiabilityCoverIds - "owner_driver_pa"
+                        )
+                    } else {
+                        current.draftQuoteFilter
+                    }
+                    val sanitizedApplied = if (action.type == OwnershipType.COMPANY) {
+                        current.appliedQuoteFilter.copy(
+                            selectedLiabilityCoverIds = current.appliedQuoteFilter.selectedLiabilityCoverIds - "owner_driver_pa"
+                        )
+                    } else {
+                        current.appliedQuoteFilter
+                    }
+                    current.copy(
+                        ownershipType = action.type,
+                        cpaCoverageOption = defaultCpa,
+                        isZextraBundleEnabled = zextraEnabled,
+                        cpaNoticeText = notice,
+                        draftQuoteFilter = sanitizedDraft,
+                        appliedQuoteFilter = sanitizedApplied
+                    )
+                }
             }
 
             is NewCarAction.OnPolicyTypeSelected -> {
@@ -1010,7 +1049,9 @@ class NewCarViewModel @Inject constructor(
                 _uiState.update { current ->
                     // TP-only shows Additional Cover alone, so Reset leaves the hidden categories alone
                     if (current.isTpOnlyFilter) {
-                        return@update current.copy(draftQuoteFilter = current.draftQuoteFilter.resetAdditionalCover())
+                        return@update current.copy(
+                            draftQuoteFilter = current.draftQuoteFilter.resetAdditionalCover(isCompany = current.isCompany)
+                        )
                     }
                     current.copy(
                         draftQuoteFilter = QuoteFilterState(
@@ -1048,6 +1089,9 @@ class NewCarViewModel @Inject constructor(
 
             is NewCarAction.OnToggleDraftLiabilityCover -> {
                 _uiState.update { current ->
+                    if (current.isCompany && action.coverId == "owner_driver_pa") {
+                        return@update current
+                    }
                     val updated = current.draftQuoteFilter.selectedLiabilityCoverIds.toMutableSet()
                     if (updated.contains(action.coverId)) {
                         updated.remove(action.coverId)
@@ -1142,7 +1186,15 @@ class NewCarViewModel @Inject constructor(
                         current.draftQuoteFilter.minIdv,
                         current.draftQuoteFilter.maxIdv
                     )
-                    val finalDraft = current.draftQuoteFilter.copy(selectedIdv = clampedIdv)
+                    val liabilityCovers = if (current.isCompany) {
+                        current.draftQuoteFilter.selectedLiabilityCoverIds - "owner_driver_pa"
+                    } else {
+                        current.draftQuoteFilter.selectedLiabilityCoverIds
+                    }
+                    val finalDraft = current.draftQuoteFilter.copy(
+                        selectedIdv = clampedIdv,
+                        selectedLiabilityCoverIds = liabilityCovers
+                    )
                     current.copy(
                         draftQuoteFilter = finalDraft,
                         appliedQuoteFilter = finalDraft
@@ -1599,10 +1651,13 @@ class NewCarViewModel @Inject constructor(
             return
         }
 
-        _uiState.update {
-            it.copy(
+        _uiState.update { current ->
+            val defaultCpa = if (current.isCompany) CpaCoverageOption.NO_CPA else CpaCoverageOption.ZEXTRA_SWITCH
+            current.copy(
                 quotes = com.policyboss.policybosspro.feature.carInsurance.model.MotorQuoteDefaults.generateDefaultQuotes(),
-                expandedAddOnQuoteIds = setOf("ACKO-01")
+                expandedAddOnQuoteIds = setOf("ACKO-01"),
+                cpaCoverageOption = if (current.cpaCoverageOption == CpaCoverageOption.INSURER_CPA) defaultCpa else current.cpaCoverageOption,
+                isZextraBundleEnabled = (if (current.cpaCoverageOption == CpaCoverageOption.INSURER_CPA) defaultCpa else current.cpaCoverageOption) == CpaCoverageOption.ZEXTRA_SWITCH
             )
         }
     }

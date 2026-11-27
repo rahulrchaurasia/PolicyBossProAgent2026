@@ -157,6 +157,7 @@ class PremiumInitiateRequestMapperTest {
     fun `form choices map to registration type, ncb, subtype and tp insurer`() {
         val corporate = build(formState { copy(ownershipType = OwnershipType.COMPANY) })
         assertEquals("corporate", corporate.vehicleRegistrationType)
+        assertEquals("no", corporate.isPaOd)
 
         val ncb = build(formState { copy(selectedNcb = DropdownOption("25", "25%")) })
         assertEquals("25", ncb.vehicleNcbCurrent)
