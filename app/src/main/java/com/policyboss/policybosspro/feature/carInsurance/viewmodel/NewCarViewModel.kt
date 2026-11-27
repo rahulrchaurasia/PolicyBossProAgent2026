@@ -1244,7 +1244,7 @@ class NewCarViewModel @Inject constructor(
                 val idvNowChanged = newState.appliedQuoteFilter.isIdvExplicitlyChanged
                 val idvNowValue = newState.appliedQuoteFilter.selectedIdv
                 if (idvNowChanged != idvChangedBeforeApply || (idvNowChanged && idvNowValue != idvBeforeApply)) {
-                    refreshQuotesInPlace()
+                    runPremiumQuoteBundle(QuoteBundleTrigger.IDV_CHANGE)
                 }
             }
 
@@ -1451,8 +1451,10 @@ class NewCarViewModel @Inject constructor(
         /** Get Quotes: loader screen, then the results open on the first answer. */
         GET_QUOTES,
         /** Results-screen variant change, after the Re-calculate popup: re-quote in place. */
-        VARIANT_CHANGE
-        // Later: IDV, ADDONS, CPA ... (all in-place re-quotes)
+        VARIANT_CHANGE,
+        /** Results-screen IDV change applied from the filter screen: re-quote in place. */
+        IDV_CHANGE
+        // Later: ADDONS, CPA ... (all in-place re-quotes)
     }
 
     /** premium_initiate -> premium_summary -> premium_list_db, always run together. */

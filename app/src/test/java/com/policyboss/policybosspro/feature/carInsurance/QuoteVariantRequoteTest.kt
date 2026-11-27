@@ -293,6 +293,49 @@ class QuoteVariantRequoteTest {
         }
     }
 
+    /** Repository whose premium_list_db answer carries an IDV range of 3 to 5 lakh. */
+    private fun idvRepository() = object : FakeCarInsuranceRepository(
+        fuelVariants = { _, _ -> Resource.Success(seltosCatalog) },
+        premiumQuotes = { srn -> Resource.Success(samplePremiumQuoteList(srn).copy(minIdv = 300_000, maxIdv = 500_000)) }
+    ) {
+        override suspend fun getCarQuotes(request: CarQuoteRequest): Resource<CarQuoteResponse> =
+            error("car-number journey must not call getCarQuotes")
+    }
+
+    @Test
+    fun `applying a new IDV re-quotes in place through the bundle with that IDV`() = runTest {
+        val repo = idvRepository()
+        val vm = NewCarViewModel(repo)
+        val loadingEvents = mutableListOf<QuoteLoadingUiEvent>()
+        val loadingJob = launch { vm.quoteLoadingEvent.collect { loadingEvents.add(it) } }
+        openResults(vm)
+        assertEquals(listOf("initiate", "summary", "list"), repo.quoteApiCalls)
+
+        vm.onAction(NewCarAction.OnUpdateDraftIdv(400_000f))
+        vm.onAction(NewCarAction.ApplyFilter)
+        advanceUntilIdle()
+
+        assertEquals(listOf("initiate", "summary", "list", "initiate", "summary", "list"), repo.quoteApiCalls)
+        assertEquals(400_000, repo.premiumInitiateInputs.last().vehicleExpectedIdv)
+        assertTrue(vm.uiState.value.quoteState is QuoteFetchState.Success)
+        // Still on the results screen: no second navigation
+        assertEquals(1, loadingEvents.count { it is QuoteLoadingUiEvent.NavigateToQuotes })
+        loadingJob.cancel()
+    }
+
+    @Test
+    fun `applying the filter with the IDV unchanged makes no quote API call`() = runTest {
+        val repo = idvRepository()
+        val vm = NewCarViewModel(repo)
+        openResults(vm)
+        val callsBefore = repo.quoteApiCalls.toList()
+
+        vm.onAction(NewCarAction.ApplyFilter)
+        advanceUntilIdle()
+
+        assertEquals(callsBefore, repo.quoteApiCalls)
+    }
+
     @Test
     fun `picking the same variant just closes the sheet`() = runTest {
         val repo = repository()
