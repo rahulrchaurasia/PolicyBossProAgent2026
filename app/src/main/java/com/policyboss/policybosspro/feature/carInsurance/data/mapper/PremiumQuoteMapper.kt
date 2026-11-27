@@ -75,6 +75,7 @@ private fun InsurerPremiumDto.toMotorQuote(minIdv: Int, maxIdv: Int): MotorQuote
     val plan = planList.firstOrNull()
     val insurerId = insurerId ?: insurer?.insurerId ?: 0
     val finalPremium = (breakup?.finalPremium ?: 0.0).roundToInt()
+    val bundleFinal = (breakup?.rsaCpaBundle?.finalPremium ?: 0.0).roundToInt()
 
     return MotorQuote(
         id = serviceLogUniqueId.orEmpty()
@@ -89,7 +90,7 @@ private fun InsurerPremiumDto.toMotorQuote(minIdv: Int, maxIdv: Int): MotorQuote
         finalPremium = finalPremium,
         originalPremium = null,
         zextraDiscountAmount = null,
-        zextraBundlePremium = (breakup?.rsaCpaBundle?.finalPremium ?: 0.0).roundToInt(),
+        zextraBundlePremium = bundleFinal,
         totalEarnings = 0,
         earningsBreakdown = NO_EARNINGS,
         addOns = plan?.addonBreakup.orEmpty().toAddOns(),
@@ -97,7 +98,7 @@ private fun InsurerPremiumDto.toMotorQuote(minIdv: Int, maxIdv: Int): MotorQuote
         idvValue = customRequest?.get("vehicle_expected_idv").toIntOrZero(),
         minIdv = minIdv,
         maxIdv = maxIdv,
-        zextraSwitchCoverPrice = 0,
+        zextraSwitchCoverPrice = bundleFinal,
         policyDetailsUrl = null,
         buyNowUrl = plan?.proposalUrl
     )

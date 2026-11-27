@@ -153,6 +153,7 @@ class PremiumQuoteListTest {
         val iffco = list.quotes.first()
         assertEquals(2471, iffco.finalPremium)
         assertEquals(354, iffco.zextraBundlePremium)
+        assertEquals(354, iffco.zextraSwitchCoverPrice)
         assertEquals(2471 + 354, iffco.effectivePremium(isZextraEnabled = true))
         assertEquals(2471, iffco.effectivePremium(isZextraEnabled = false))
         assertEquals("Comprehensive", iffco.planName)

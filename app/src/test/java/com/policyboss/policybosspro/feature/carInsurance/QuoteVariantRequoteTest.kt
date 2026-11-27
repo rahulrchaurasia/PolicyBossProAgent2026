@@ -131,6 +131,31 @@ class QuoteVariantRequoteTest {
     }
 
     @Test
+    fun `variant pill shows the full name with capacity, first time and after a pick`() = runTest {
+        // vehicle_info_user: Variant_Name + Cubic_Capacity
+        val first = com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState(
+            variant = "1.0 VXI AMT BS-VI",
+            cubicCapacity = "998"
+        )
+        assertEquals("1.0 VXI AMT BS-VI (998CC)", first.quoteVariantDisplayText)
+        // Name that already carries the capacity is not doubled
+        assertEquals(
+            "Plus 1.5 GTX AT (1493CC)",
+            first.copy(variant = "Plus 1.5 GTX AT (1493CC)", cubicCapacity = "1493").quoteVariantDisplayText
+        )
+        assertEquals("VXI+", first.copy(variant = "VXI+", cubicCapacity = "").quoteVariantDisplayText)
+        assertEquals("", first.copy(variant = "").quoteVariantDisplayText)
+
+        // After a pick from the sheet: same label as the sheet row
+        val vm = NewCarViewModel(repository())
+        openResults(vm)
+        vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6917", "HTK PLUS 1.5 MT (1493CC)")))
+        advanceUntilIdle()
+        assertEquals("HTK PLUS 1.5 MT (1493CC)", vm.uiState.value.quoteVariantDisplayText)
+        assertEquals(vm.uiState.value.selectedQuoteVariantOption?.label, vm.uiState.value.quoteVariantDisplayText)
+    }
+
+    @Test
     fun `picking the same variant just closes the sheet`() = runTest {
         val repo = repository()
         val vm = NewCarViewModel(repo)

@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -521,26 +522,46 @@ fun InsurerQuoteCard(
                     }
                 }
 
-                // Tier 2 — Zextra Switch Cover Row (Full Width)
-                if (isZextraBundleEnabled && quote.zextraSwitchCoverPrice > 0) {
+                // Tier 2 — Zextra Switch Cover Row (Styled Gradient Strip)
+                AnimatedVisibility(
+                    visible = isZextraBundleEnabled && quote.zextraSwitchCoverPrice > 0,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFF4592FA), // Vibrant Blue
+                                        Color(0xFF6B8AFF)  // Soft Indigo/Blue
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Zextra Switch Cover :",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = AppColors.TextSecondary
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            ZextraSwitchLogo(height = 20.dp)
+                            Text(
+                                text = "Zextra Switch Cover :",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White
+                            )
+                        }
                         Text(
                             text = "₹${MotorQuote.formatIndianCurrency(quote.zextraSwitchCoverPrice)}",
                             fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AppColors.TextPrimary
+                            color = Color.White
                         )
                     }
                 }

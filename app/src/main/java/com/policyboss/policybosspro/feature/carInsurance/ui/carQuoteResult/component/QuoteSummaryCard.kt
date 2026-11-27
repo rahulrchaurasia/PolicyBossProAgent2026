@@ -212,7 +212,8 @@ fun QuoteSummaryCard(
 
             // 3. Dedicated Quote Controls & CPA/Bundle Card
             // Variant_Name from vehicle_info_user, or the variant picked later
-            val variantText = uiState.variant.ifBlank { uiState.selectedVariant?.label.orEmpty() }
+            // Full label with capacity, matching the sheet: "1.0 VXI AMT BS-VI (998CC)"
+            val variantText = uiState.quoteVariantDisplayText.ifBlank { uiState.selectedVariant?.label.orEmpty() }
 
             val additionalCoverSummary = run {
                 // TP hides the accessories fields, so only liability + passenger covers count

@@ -413,6 +413,20 @@ data class NewCarUiState(
             return listOfNotNull(committed) + catalogue
         }
 
+    /**
+     * Results-screen variant pill, same format as the sheet rows: `1.0 VXI AMT BS-VI (998CC)`.
+     * Works for the vehicle_info_user variant (Cubic_Capacity) and a variant picked later.
+     */
+    val quoteVariantDisplayText: String
+        get() {
+            val name = variant.trim()
+            if (name.isBlank()) return ""
+            val cc = cubicCapacity.trim()
+            // Some names already carry the capacity, e.g. "Plus 1.5 GTX AT (1493CC)"
+            val hasCc = name.endsWith("CC)", ignoreCase = true)
+            return if (cc.isNotBlank() && !hasCc) "$name (${cc}CC)" else name
+        }
+
     val quoteVariantOptions: List<DropdownOption<String>>
         get() = quoteVariantItems.map { DropdownOption(it.variantId, it.displayLabel) }
 
