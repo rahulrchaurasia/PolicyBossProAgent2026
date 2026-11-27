@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,17 +62,17 @@ import com.policyboss.policybosspro.ui.theme.AppColors
 fun InsurerQuoteCard(
     quote: MotorQuote,
     isZextraBundleEnabled: Boolean,
-    isAddOnsExpanded: Boolean,
-    isCompared: Boolean,
-    onToggleAddOnsExpanded: () -> Unit,
-    onToggleAddOn: (String) -> Unit,
+    isAddOnsExpanded: Boolean = false,
+    isCompared: Boolean = false,
+    onToggleAddOnsExpanded: () -> Unit = {},
+    onToggleAddOn: (String) -> Unit = {},
     onToggleCompare: () -> Unit,
     onBuyNowClick: () -> Unit,
     onShareClick: () -> Unit,
     onPolicyDetailsClick: () -> Unit,
     modifier: Modifier = Modifier,
     /** TP-only: no add-ons. */
-    showAddOns: Boolean = true,
+    showAddOns: Boolean = false,
     /** TP-only: no car value (IDV). */
     showIdv: Boolean = true
 ) {
@@ -151,106 +152,46 @@ fun InsurerQuoteCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Premium & Brokerage Section
-            if (isZextraBundleEnabled) {
-                // Zextra Bundle is ON: Shows discount badge
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Premium",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = AppColors.Slate500
+            // Premium Row (SpaceBetween: "Premium" on Left, Amount on Right)
+            val displayPremium = quote.effectivePremium(isZextraBundleEnabled)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Premium",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (quote.originalPremium != null) {
-                            Text(
-                                text = "₹${MotorQuote.formatIndianCurrency(quote.originalPremium)}",
-                                style = TextStyle(textDecoration = TextDecoration.LineThrough),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = AppColors.Slate400
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-                        Text(
-                            text = "₹${MotorQuote.formatIndianCurrency(quote.finalPremium)}",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppColors.Slate900
-                        )
-                    }
+                )
 
-                    if (quote.zextraDiscountAmount != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFEEF4FF))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Reduced by ₹${quote.zextraDiscountAmount} with Zextra ↓",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF3538CD)
-                            )
-                        }
-                    }
-                }
-            } else {
-                // Zextra Bundle is OFF: Shows simple Premium on left and Brokerage on right
+                Text(
+                    text = "₹${MotorQuote.formatIndianCurrency(displayPremium)}",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary
+                    )
+                )
+            }
+
+            if (quote.zextraDiscountAmount != null && isZextraBundleEnabled) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFEEF4FF))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = "Premium",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = AppColors.Slate500
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "₹${MotorQuote.formatIndianCurrency(quote.effectivePremium(false))}",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppColors.Slate900
-                        )
-                    }
-
-                    if (quote.totalEarnings > 0) Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "Brokerage",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = AppColors.Slate500
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(Color(0xFFFEF3C7))
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Image(
-                                painter = painterResource(R.drawable.img_gold_coin),
-                                contentDescription = "Brokerage",
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = MotorQuote.formatIndianCurrency(quote.effectiveEarnings(false)),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AppColors.Slate900
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Reduced by ₹${quote.zextraDiscountAmount} with Zextra ↓",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF3538CD)
+                    )
                 }
             }
 
@@ -355,101 +296,6 @@ fun InsurerQuoteCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Expandable Add-ons Section (hidden for TP-only)
-            if (showAddOns) Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, AppColors.Slate200, RoundedCornerShape(10.dp))
-                    .clickable { onToggleAddOnsExpanded() }
-                    .padding(10.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = if (isAddOnsExpanded && quote.addOns.isNotEmpty()) {
-                                "Add-ons (${quote.addOns.size})"
-                            } else {
-                                "Add-ons"
-                            },
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppColors.Slate800
-                        )
-
-                        if (isAddOnsExpanded) {
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = "Edit Add-ons",
-                                tint = AppColors.Slate700,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        } else {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_plus_fill),
-                                contentDescription = "Expand Add-ons",
-                                tint = AppColors.Slate700,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    AnimatedVisibility(
-                        visible = isAddOnsExpanded && quote.addOns.isNotEmpty(),
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            quote.addOns.forEach { addOn ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onToggleAddOn(addOn.id) },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        modifier = Modifier.weight(1f),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_check_circle),
-                                            contentDescription = "Selected",
-                                            tint = if (addOn.isSelected) AppColors.SuccessGreen else AppColors.Slate300,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = addOn.name,
-                                            fontSize = 12.sp,
-                                            color = AppColors.Slate700
-                                        )
-                                    }
-
-                                    Text(
-                                        text = "₹${MotorQuote.formatIndianCurrency(addOn.price)}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = AppColors.Slate900
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
             // Insurer Benefits Badges
             if (quote.benefits.isNotEmpty()) {
                 FlowRow(
@@ -481,7 +327,7 @@ fun InsurerQuoteCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Tier 1 — Highlighted Car Value (IDV) Box (Full Width); hidden when there is no IDV (TP-only)
+                // Tier 1 — Highlighted Car Value (IDV) Box (Full Width with SpaceBetween Alignment); hidden when there is no IDV (TP-only)
                 if (showIdv) Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -490,10 +336,14 @@ fun InsurerQuoteCard(
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        // Row 1: Primary IDV Line
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Row 1: Primary IDV Line (Label Left, Amount Right)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = "Car Value (IDV) : ",
+                                text = "Car Value (IDV) :",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = AppColors.TextSecondary
@@ -506,23 +356,33 @@ fun InsurerQuoteCard(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                        // Row 2: IDV Min-Max Range Line
+                        // Row 2: IDV Min-Max Range Line (Label Left, Range Right)
                         val minIdvStr = MotorQuote.formatIndianCurrency(quote.minIdv)
                         val maxIdvStr = MotorQuote.formatIndianCurrency(quote.maxIdv)
-                        Text(
-                            text = "IDV From : ₹$minIdvStr  To : ₹$maxIdvStr",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = AppColors.TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "IDV Range :",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppColors.TextSecondary
+                            )
+                            Text(
+                                text = "₹$minIdvStr to ₹$maxIdvStr",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppColors.TextSecondary
+                            )
+                        }
                     }
                 }
 
-                // Tier 2 — Zextra Switch Cover Row (Styled Gradient Strip)
+                // Tier 2 — Zextra Switch Cover Row (Rich Gradient Strip matching CRN badge)
                 AnimatedVisibility(
                     visible = isZextraBundleEnabled && quote.zextraSwitchCoverPrice > 0,
                     enter = fadeIn() + expandVertically(),
@@ -535,8 +395,9 @@ fun InsurerQuoteCard(
                             .background(
                                 brush = Brush.horizontalGradient(
                                     colors = listOf(
-                                        Color(0xFF4592FA), // Vibrant Blue
-                                        Color(0xFF6B8AFF)  // Soft Indigo/Blue
+                                        Color(0xFF1D4ED8), // Deep Royal Blue (matches CRN Badge start)
+                                        Color(0xFF3B82F6), // Vibrant Electric Blue
+                                        Color(0xFF7C3AED)  // Rich Violet/Purple (matches Image 1 end)
                                     )
                                 )
                             )
