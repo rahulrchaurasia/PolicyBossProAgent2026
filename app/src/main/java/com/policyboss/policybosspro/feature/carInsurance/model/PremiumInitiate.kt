@@ -23,7 +23,8 @@ data class PremiumInitiateInput(
      * always true for TP Only, false when there is no existing policy.
      */
     val hasClaim: Boolean = false,
-    val isPaOd: Boolean = false
+    val isPaOd: Boolean = false,
+    val vehicleExpectedIdv: Int = 0
 )
 
 fun NewCarUiState.toPremiumInitiateInput(vehicle: VehicleInfoDomain): PremiumInitiateInput =
@@ -41,7 +42,12 @@ fun NewCarUiState.toPremiumInitiateInput(vehicle: VehicleInfoDomain): PremiumIni
             policyType == PolicyType.TP_ONLY -> true
             else -> shouldShowClaimAndNcb && hasClaim
         },
-        isPaOd = if (isCompany) false else appliedQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa")
+        isPaOd = if (isCompany) false else appliedQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"),
+        vehicleExpectedIdv = if (appliedQuoteFilter.isIdvExplicitlyChanged) {
+            appliedQuoteFilter.selectedIdv.toInt()
+        } else {
+            0
+        }
     )
 
 /**

@@ -73,6 +73,8 @@ fun buildPremiumInitiateRequest(
         customerName = input.customerName.trim(),
         permanentPincode = premium.permanentPincode,
         previousPolicyNumber = premium.previousPolicyNumber,
+        addonApplied = NO,
+        vehicleExpectedIdv = input.vehicleExpectedIdv,
         vahanCcMin = ccRange.first,
         vahanCcMax = ccRange.second,
         vahanCcNormal = premium.vahanCubicCapacity.toIntOrZero(),

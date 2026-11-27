@@ -1181,6 +1181,8 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.ApplyFilter -> {
+                val idvBeforeApply = _uiState.value.appliedQuoteFilter.selectedIdv
+                val idvChangedBeforeApply = _uiState.value.appliedQuoteFilter.isIdvExplicitlyChanged
                 _uiState.update { current ->
                     val clampedIdv = current.draftQuoteFilter.selectedIdv.coerceIn(
                         current.draftQuoteFilter.minIdv,
@@ -1195,10 +1197,40 @@ class NewCarViewModel @Inject constructor(
                         selectedIdv = clampedIdv,
                         selectedLiabilityCoverIds = liabilityCovers
                     )
+                    // Two-way CPA <-> owner_driver_pa sync (Individual only)
+                    val resolvedCpa = if (!current.isCompany) {
+                        when {
+                            liabilityCovers.contains("owner_driver_pa") &&
+                                    current.cpaCoverageOption != CpaCoverageOption.INSURER_CPA ->
+                                CpaCoverageOption.INSURER_CPA
+                            !liabilityCovers.contains("owner_driver_pa") &&
+                                    current.cpaCoverageOption == CpaCoverageOption.INSURER_CPA ->
+                                CpaCoverageOption.NO_CPA
+                            else -> current.cpaCoverageOption
+                        }
+                    } else {
+                        current.cpaCoverageOption
+                    }
+                    val resolvedZextra = resolvedCpa == CpaCoverageOption.ZEXTRA_SWITCH
+                    val resolvedNotice = when (resolvedCpa) {
+                        CpaCoverageOption.ZEXTRA_SWITCH -> "Special Zextra Bundle (CPA + RSA) included"
+                        CpaCoverageOption.INSURER_CPA -> "Insurer CPA included"
+                        CpaCoverageOption.NO_CPA -> "CPA: Don't have Personal Accident cover"
+                    }
                     current.copy(
                         draftQuoteFilter = finalDraft,
-                        appliedQuoteFilter = finalDraft
+                        appliedQuoteFilter = finalDraft,
+                        cpaCoverageOption = resolvedCpa,
+                        isZextraBundleEnabled = resolvedZextra,
+                        cpaNoticeText = resolvedNotice
                     )
+                }
+                // Trigger IDV re-quote if IDV changed (either newly set/updated or reset)
+                val newState = _uiState.value
+                val idvNowChanged = newState.appliedQuoteFilter.isIdvExplicitlyChanged
+                val idvNowValue = newState.appliedQuoteFilter.selectedIdv
+                if (idvNowChanged != idvChangedBeforeApply || (idvNowChanged && idvNowValue != idvBeforeApply)) {
+                    refreshQuotesInPlace()
                 }
             }
 
@@ -1210,10 +1242,27 @@ class NewCarViewModel @Inject constructor(
                         CpaCoverageOption.INSURER_CPA -> "Insurer CPA included"
                         CpaCoverageOption.NO_CPA -> "CPA: Don't have Personal Accident cover"
                     }
+                    // Auto-add/remove owner_driver_pa based on CPA choice (Individual only)
+                    val updatedLiabilityIds = when {
+                        action.option == CpaCoverageOption.INSURER_CPA && !current.isCompany ->
+                            current.draftQuoteFilter.selectedLiabilityCoverIds + "owner_driver_pa"
+                        action.option == CpaCoverageOption.NO_CPA ||
+                                action.option == CpaCoverageOption.ZEXTRA_SWITCH ->
+                            current.draftQuoteFilter.selectedLiabilityCoverIds - "owner_driver_pa"
+                        else -> current.draftQuoteFilter.selectedLiabilityCoverIds
+                    }
+                    val updatedDraft = current.draftQuoteFilter.copy(
+                        selectedLiabilityCoverIds = updatedLiabilityIds
+                    )
+                    val updatedApplied = current.appliedQuoteFilter.copy(
+                        selectedLiabilityCoverIds = updatedLiabilityIds
+                    )
                     current.copy(
                         cpaCoverageOption = action.option,
                         isZextraBundleEnabled = zextraEnabled,
-                        cpaNoticeText = notice
+                        cpaNoticeText = notice,
+                        draftQuoteFilter = updatedDraft,
+                        appliedQuoteFilter = updatedApplied
                     )
                 }
             }
@@ -1544,6 +1593,34 @@ class NewCarViewModel @Inject constructor(
         val isPolling = update.status == PremiumPollStatus.POLLING
 
         _uiState.update { current ->
+            // Bind IDV min/max and expected IDV from API response
+            val newMinIdv = list.minIdv.toFloat().takeIf { it > 0f } ?: current.draftQuoteFilter.minIdv
+            val newMaxIdv = maxOf(newMinIdv, list.maxIdv.toFloat().takeIf { it > 0f } ?: current.draftQuoteFilter.maxIdv)
+            val apiExpectedIdv = list.vehicleExpectedIdv.takeIf { it > 0 }?.toFloat()?.coerceIn(newMinIdv, newMaxIdv)
+            val updatedDraftIdv = current.draftQuoteFilter.copy(
+                minIdv = newMinIdv,
+                maxIdv = newMaxIdv,
+                defaultIdv = newMinIdv,
+                selectedIdv = when {
+                    current.draftQuoteFilter.isIdvExplicitlyChanged ->
+                        current.draftQuoteFilter.selectedIdv.coerceIn(newMinIdv, newMaxIdv)
+                    apiExpectedIdv != null -> apiExpectedIdv
+                    else -> newMinIdv
+                },
+                isIdvExplicitlyChanged = current.draftQuoteFilter.isIdvExplicitlyChanged || apiExpectedIdv != null
+            )
+            val updatedAppliedIdv = current.appliedQuoteFilter.copy(
+                minIdv = newMinIdv,
+                maxIdv = newMaxIdv,
+                defaultIdv = newMinIdv,
+                selectedIdv = when {
+                    current.appliedQuoteFilter.isIdvExplicitlyChanged ->
+                        current.appliedQuoteFilter.selectedIdv.coerceIn(newMinIdv, newMaxIdv)
+                    apiExpectedIdv != null -> apiExpectedIdv
+                    else -> newMinIdv
+                },
+                isIdvExplicitlyChanged = current.appliedQuoteFilter.isIdvExplicitlyChanged || apiExpectedIdv != null
+            )
             current.copy(
                 quoteState = if (isFirst) {
                     QuoteFetchState.Success(quoteId = quoteId, quoteUrl = null, quotesCount = quotes.size)
@@ -1555,6 +1632,8 @@ class NewCarViewModel @Inject constructor(
                 premiumPollStatus = update.status,
                 premiumQuoteList = list,
                 quotes = quotes,
+                draftQuoteFilter = updatedDraftIdv,
+                appliedQuoteFilter = updatedAppliedIdv,
                 // Keep what the agent expanded or ticked; new cards arrive collapsed
                 expandedAddOnQuoteIds = if (isFirst) {
                     quotes.firstOrNull()?.let { setOf(it.id) } ?: emptySet()

@@ -10,6 +10,8 @@ import com.policyboss.policybosspro.feature.carInsurance.model.MotorQuoteDefault
 import com.policyboss.policybosspro.feature.carInsurance.model.MotorQuoteSortOption
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
+import com.policyboss.policybosspro.feature.carInsurance.model.VehicleInfoDomain
+import com.policyboss.policybosspro.feature.carInsurance.model.toPremiumInitiateInput
 import com.policyboss.policybosspro.feature.carInsurance.viewmodel.NewCarViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -240,6 +242,102 @@ class MotorQuoteResultsTest {
         // Can toggle other covers
         vm.onAction(NewCarAction.OnToggleDraftLiabilityCover("paid_driver_liability"))
         assertTrue(vm.uiState.value.draftQuoteFilter.selectedLiabilityCoverIds.contains("paid_driver_liability"))
+    }
+
+    @Test
+    fun `Insurer CPA selected for Individual auto-selects owner_driver_pa and No CPA removes it`() {
+        val vm = NewCarViewModel(fakeRepository())
+        vm.initForMode(com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode.WITHOUT_CAR_NUMBER)
+
+        // Switch to Insurer CPA -> owner_driver_pa is added to both draft and applied filters
+        vm.onAction(
+            NewCarAction.OnSelectCpaCoverageOption(
+                com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.INSURER_CPA
+            )
+        )
+        assertTrue(vm.uiState.value.draftQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+        assertTrue(vm.uiState.value.appliedQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+
+        // Switch to No CPA -> owner_driver_pa is removed
+        vm.onAction(
+            NewCarAction.OnSelectCpaCoverageOption(
+                com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.NO_CPA
+            )
+        )
+        assertFalse(vm.uiState.value.draftQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+        assertFalse(vm.uiState.value.appliedQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+    }
+
+    @Test
+    fun `two-way CPA sync updates toggle when owner_driver_pa is unchecked or checked and applied`() {
+        val vm = NewCarViewModel(fakeRepository())
+        vm.initForMode(com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode.WITHOUT_CAR_NUMBER)
+
+        // Start with Insurer CPA (owner_driver_pa selected)
+        vm.onAction(
+            NewCarAction.OnSelectCpaCoverageOption(
+                com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.INSURER_CPA
+            )
+        )
+        assertTrue(vm.uiState.value.appliedQuoteFilter.selectedLiabilityCoverIds.contains("owner_driver_pa"))
+
+        // Uncheck owner_driver_pa in filter and Apply -> reverts CPA toggle to NO_CPA
+        vm.onAction(NewCarAction.OnToggleDraftLiabilityCover("owner_driver_pa"))
+        vm.onAction(NewCarAction.ApplyFilter)
+        assertEquals(
+            com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.NO_CPA,
+            vm.uiState.value.cpaCoverageOption
+        )
+
+        // Check owner_driver_pa in filter and Apply -> sets CPA toggle to INSURER_CPA
+        vm.onAction(NewCarAction.OnToggleDraftLiabilityCover("owner_driver_pa"))
+        vm.onAction(NewCarAction.ApplyFilter)
+        assertEquals(
+            com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption.INSURER_CPA,
+            vm.uiState.value.cpaCoverageOption
+        )
+    }
+
+    @Test
+    fun `IDV bounds and expected IDV are populated in toPremiumInitiateInput when explicitly changed`() {
+        val vm = NewCarViewModel(fakeRepository())
+        vm.initForMode(com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode.WITHOUT_CAR_NUMBER)
+
+        val vehicle = VehicleInfoDomain(
+            registrationNumber = "MH01BB0197",
+            vahanSummary = "",
+            ownerName = "Test",
+            makeName = "Maruti",
+            modelName = "Wagon R",
+            variantName = "VXI",
+            fuelType = "Petrol",
+            modelId = "138",
+            variantId = "6917",
+            fuelId = "1",
+            cubicCapacity = "998",
+            rtoCode = "291",
+            rtoName = "Mumbai",
+            registrationDate = "18-Oct-2011",
+            manufacturingMonth = "Sep",
+            manufacturingYear = "2011",
+            previousInsurerId = "",
+            previousInsurerName = "",
+            policyExpiryDate = "",
+            vehicleDetailId = ""
+        )
+
+        // Initially not explicitly changed -> vehicleExpectedIdv = 0
+        assertFalse(vm.uiState.value.appliedQuoteFilter.isIdvExplicitlyChanged)
+        val initialInput = vm.uiState.value.toPremiumInitiateInput(vehicle)
+        assertEquals(0, initialInput.vehicleExpectedIdv)
+
+        // Update draft IDV and Apply -> vehicleExpectedIdv = selected IDV
+        vm.onAction(NewCarAction.OnUpdateDraftIdv(125000f))
+        vm.onAction(NewCarAction.ApplyFilter)
+        assertTrue(vm.uiState.value.appliedQuoteFilter.isIdvExplicitlyChanged)
+        assertEquals(125000f, vm.uiState.value.appliedQuoteFilter.selectedIdv)
+        val updatedInput = vm.uiState.value.toPremiumInitiateInput(vehicle)
+        assertEquals(125000, updatedInput.vehicleExpectedIdv)
     }
 }
 

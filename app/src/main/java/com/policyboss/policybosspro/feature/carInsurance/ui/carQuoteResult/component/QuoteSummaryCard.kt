@@ -243,7 +243,8 @@ fun QuoteSummaryCard(
                 crnNumber = uiState.crnNumber,
                 registrationNumber = uiState.formattedRegistrationNumber,
                 isNewCar = isNewCar,
-                idvAmount = uiState.appliedQuoteFilter.selectedIdv.toInt(),
+                carValueLabel = if (!uiState.appliedQuoteFilter.isIdvExplicitlyChanged) "Set IDV"
+                    else "₹${MotorQuote.formatIndianCurrency(uiState.appliedQuoteFilter.selectedIdv.toInt())}",
                 addonsCount = 17, // Matches 17 Addons reference layout
                 addonsValue = "17 Addons",
                 additionalCoverValue = additionalCoverSummary,

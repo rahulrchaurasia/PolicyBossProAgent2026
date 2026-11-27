@@ -47,6 +47,7 @@ fun InsurerPremiumDto.isValidPlan(): Boolean =
 fun PremiumListResponseDto.toPremiumQuoteList(searchReferenceNumber: String): PremiumQuoteList {
     val minIdv = summary?.idvMin?.roundToInt() ?: 0
     val maxIdv = summary?.idvMax?.roundToInt() ?: 0
+    val vehicleExpectedIdv = summary?.requestCore?.get("vehicle_expected_idv").toIntOrZero()
 
     val (validRows, otherRows) = response.partition { it.isValidPlan() }
     val quotes = validRows
@@ -66,7 +67,8 @@ fun PremiumListResponseDto.toPremiumQuoteList(searchReferenceNumber: String): Pr
         quotes = quotes,
         declinedInsurers = declined,
         minIdv = minIdv,
-        maxIdv = maxIdv
+        maxIdv = maxIdv,
+        vehicleExpectedIdv = vehicleExpectedIdv
     )
 }
 

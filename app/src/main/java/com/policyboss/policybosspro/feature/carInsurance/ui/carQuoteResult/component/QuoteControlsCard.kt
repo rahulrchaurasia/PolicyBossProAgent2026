@@ -61,7 +61,8 @@ fun QuoteControlsCard(
     crnNumber: String,
     registrationNumber: String,
     isNewCar: Boolean,
-    idvAmount: Int,
+    idvAmount: Int = 0,
+    carValueLabel: String = if (idvAmount == 0) "Set IDV" else "₹${MotorQuote.formatIndianCurrency(idvAmount)}",
     addonsCount: Int,
     addonsValue: String = "$addonsCount Addons",
     additionalCoverValue: String = "Select",
@@ -206,7 +207,7 @@ fun QuoteControlsCard(
                     if (showCarValue) add {
                         QuoteParameterRow(
                             label = "Car Value",
-                            value = "₹${MotorQuote.formatIndianCurrency(idvAmount)}",
+                            value = carValueLabel,
                             showInfoIcon = true,
                             onInfoClick = onIdvInfoClick,
                             onClick = onIdvClick
