@@ -3,6 +3,7 @@ package com.policyboss.policybosspro.feature.carInsurance
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumPollStatus
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumProgress
+import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.quoteFetchingStatusText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -53,5 +54,33 @@ class QuoteFetchingFooterStateTest {
 
         val done = fetching.copy(premiumPollStatus = PremiumPollStatus.COMPLETE)
         assertTrue(done.isAwaitingInsurerQuotes)
+    }
+
+    @Test
+    fun `summary spinner only while polling with no plan bound`() {
+        val polling = NewCarUiState(premiumPollStatus = PremiumPollStatus.POLLING)
+        assertTrue(polling.isQuoteSummaryLoading)
+
+        val withPlan = polling.copy(quotes = samplePremiumQuoteList().quotes)
+        assertFalse(withPlan.isQuoteSummaryLoading)
+
+        listOf(PremiumPollStatus.COMPLETE, PremiumPollStatus.TIMED_OUT, PremiumPollStatus.STOPPED_ON_ERROR).forEach { status ->
+            assertFalse(NewCarUiState(premiumPollStatus = status).isQuoteSummaryLoading)
+        }
+        // Demo / dummy-data flow never polls
+        assertFalse(NewCarUiState().isQuoteSummaryLoading)
+    }
+
+    @Test
+    fun `footer text says quotes before the first plan and more quotes after`() {
+        assertEquals(
+            "Fetching quotes… 3 of 18 insurers responded",
+            quoteFetchingStatusText(hasQuotes = false, progressText = "3 of 18 insurers responded")
+        )
+        assertEquals(
+            "Fetching more quotes… 11 of 18 insurers responded",
+            quoteFetchingStatusText(hasQuotes = true, progressText = "11 of 18 insurers responded")
+        )
+        assertEquals("Fetching more quotes…", quoteFetchingStatusText(hasQuotes = true, progressText = null))
     }
 }

@@ -50,15 +50,17 @@ import com.policyboss.policybosspro.ui.theme.bodyMediumSemiBold
  * @param skeletonCount 1 under existing quotes; 2 when no quote has arrived yet.
  * @param progressText e.g. "11 of 18 insurers responded"; null shows only "Fetching more quotes…".
  * @param progress answered / total in 0..1; null shows an indeterminate bar.
+ * @param hasQuotes false before any plan is listed ("Fetching quotes…"), true after ("Fetching more quotes…").
  */
 @Composable
 fun QuoteFetchingFooter(
     progressText: String?,
     progress: Float?,
     modifier: Modifier = Modifier,
-    skeletonCount: Int = 1
+    skeletonCount: Int = 1,
+    hasQuotes: Boolean = true
 ) {
-    val statusText = listOfNotNull("Fetching more quotes…", progressText).joinToString(" ")
+    val statusText = quoteFetchingStatusText(hasQuotes, progressText)
 
     Column(
         modifier = modifier
@@ -118,6 +120,13 @@ fun QuoteFetchingFooter(
         }
     }
 }
+
+/**
+ * Footer status line: "Fetching quotes…" before any plan is listed, "Fetching more quotes…" after,
+ * followed by the insurer progress when known (e.g. "3 of 18 insurers responded").
+ */
+internal fun quoteFetchingStatusText(hasQuotes: Boolean, progressText: String?): String =
+    listOfNotNull(if (hasQuotes) "Fetching more quotes…" else "Fetching quotes…", progressText).joinToString(" ")
 
 /** Shown once polling stopped at the time limit while some insurers had not answered. */
 @Composable
@@ -218,6 +227,7 @@ private fun QuoteFetchingFooterEmptyPreview() {
             progressText = null,
             progress = null,
             skeletonCount = 2,
+            hasQuotes = false,
             modifier = Modifier.padding(16.dp)
         )
     }

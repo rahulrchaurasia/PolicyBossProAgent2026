@@ -1,5 +1,11 @@
 package com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -74,96 +80,113 @@ fun QuoteSummaryCard(
                 animationSpec = tween(durationMillis = COUNT_UP_MILLIS),
                 label = "minPremium"
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                // Column 1: Quotes
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            // Stats always show (0 / ₹0 at first); while no plan is bound, a spinner overlays them
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Text(
-                        text = animatedQuotesCount.toString(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.Slate900
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Quotes",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = AppColors.Slate500
-                    )
-                }
-
-                VerticalDivider(
-                    modifier = Modifier.height(34.dp),
-                    color = AppColors.Slate200,
-                    thickness = 1.dp
-                )
-
-                // Column 2: Min. Premiums
-                Column(
-                    modifier = Modifier.weight(1.3f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "₹${MotorQuote.formatIndianCurrency(animatedMinPremium)}",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.Slate900
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Min. Premiums",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = AppColors.Slate500
-                    )
-                }
-
-                VerticalDivider(
-                    modifier = Modifier.height(34.dp),
-                    color = AppColors.Slate200,
-                    thickness = 1.dp
-                )
-
-                // Column 3: Max. Earnings
-                Column(
-                    modifier = Modifier.weight(1.3f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .background(
-                                color = Color(0xFFFEF3C7),
-                                shape = RoundedCornerShape(999.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Column 1: Quotes
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.img_gold_coin),
-                            contentDescription = "Earnings",
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = MotorQuote.formatIndianCurrency(uiState.maxEarnings),
-                            fontSize = 14.sp,
+                            text = animatedQuotesCount.toString(),
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = AppColors.Slate900
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Quotes",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppColors.Slate500
+                        )
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Max. Earnings",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = AppColors.Slate500
+
+                    VerticalDivider(
+                        modifier = Modifier.height(34.dp),
+                        color = AppColors.Slate200,
+                        thickness = 1.dp
+                    )
+
+                    // Column 2: Min. Premiums
+                    Column(
+                        modifier = Modifier.weight(1.3f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "₹${MotorQuote.formatIndianCurrency(animatedMinPremium)}",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.Slate900
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Min. Premiums",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppColors.Slate500
+                        )
+                    }
+
+                    VerticalDivider(
+                        modifier = Modifier.height(34.dp),
+                        color = AppColors.Slate200,
+                        thickness = 1.dp
+                    )
+
+                    // Column 3: Max. Earnings
+                    Column(
+                        modifier = Modifier.weight(1.3f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    color = Color(0xFFFEF3C7),
+                                    shape = RoundedCornerShape(999.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.img_gold_coin),
+                                contentDescription = "Earnings",
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = MotorQuote.formatIndianCurrency(uiState.maxEarnings),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppColors.Slate900
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Max. Earnings",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppColors.Slate500
+                        )
+                    }
+                }
+
+                // Fades out when the first real plan arrives
+                val overlayAlpha by animateFloatAsState(
+                    targetValue = if (uiState.isQuoteSummaryLoading) 1f else 0f,
+                    animationSpec = tween(durationMillis = 300),
+                    label = "summaryLoadingOverlay"
+                )
+                if (overlayAlpha > 0f) {
+                    SummaryLoadingOverlay(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .graphicsLayer { alpha = overlayAlpha }
                     )
                 }
             }
@@ -188,9 +211,8 @@ fun QuoteSummaryCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             // 3. Dedicated Quote Controls & CPA/Bundle Card
-            val variantText = uiState.variant.ifBlank {
-                uiState.selectedVariant?.label ?: "PLUS 1.5 GTX AT (1493 CC)"
-            }
+            // Variant_Name from vehicle_info_user, or the variant picked later
+            val variantText = uiState.variant.ifBlank { uiState.selectedVariant?.label.orEmpty() }
 
             val additionalCoverSummary = run {
                 // TP hides the accessories fields, so only liability + passenger covers count
@@ -213,9 +235,9 @@ fun QuoteSummaryCard(
             }
 
             QuoteControlsCard(
-                make = uiState.make.ifBlank { "Kia" },
-                model = uiState.model.ifBlank { "Seltos" },
-                fuel = uiState.fuel.ifBlank { "Diesel" },
+                make = uiState.make,
+                model = uiState.model,
+                fuel = uiState.fuel,
                 variantText = variantText,
                 crnNumber = uiState.crnNumber,
                 registrationNumber = uiState.formattedRegistrationNumber,
@@ -292,3 +314,21 @@ private fun QuoteSummaryCardPreview() {
 
 /** Duration of the count-up when a summary number changes. */
 private const val COUNT_UP_MILLIS = 600
+
+/** Spinner laid over the stats while insurers answer and no plan has arrived yet. */
+@Composable
+private fun SummaryLoadingOverlay(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .background(AppColors.White.copy(alpha = 0.6f))
+            .semantics { contentDescription = "Getting quotes from insurers" },
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(24.dp),
+            color = AppColors.PrimaryBlue,
+            trackColor = AppColors.PrimaryBlue.copy(alpha = 0.14f),
+            strokeWidth = 2.5.dp
+        )
+    }
+}

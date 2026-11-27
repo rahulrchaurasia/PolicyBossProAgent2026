@@ -211,6 +211,13 @@ data class NewCarUiState(
             (progress.total - progress.pending).coerceIn(0, progress.total).toFloat() / progress.total
         }
 
+    /**
+     * Results are open, insurers are still answering and no plan has been bound yet: the summary
+     * row shows a spinner instead of 0 / ₹0. Earnings are not used (the quote APIs send none).
+     */
+    val isQuoteSummaryLoading: Boolean
+        get() = isFetchingMoreQuotes && quotes.isEmpty()
+
     /** Polling hit the time limit while some insurers had not answered. */
     val isQuotesFetchTimedOut: Boolean
         get() = premiumPollStatus == PremiumPollStatus.TIMED_OUT
@@ -373,6 +380,49 @@ data class NewCarUiState(
             if (sheetSearchQuery.isBlank()) return allVariants
             val query = sheetSearchQuery.trim().lowercase()
             return allVariants.filter { it.displayLabel.lowercase().contains(query) }
+        }
+
+    /**
+     * Variants for the results-screen "Select Variant" sheet: the committed Make + Model + Fuel
+     * from the cached beta_GetFuelVariant response. The committed (vehicle_info_user) variant is
+     * kept selectable even when the catalogue does not list it or is not loaded yet.
+     */
+    val quoteVariantItems: List<CarVariantItem>
+        get() {
+            val catalogue = fuelVariantCatalog
+                ?.takeIf { it.modelId.equals(modelId, ignoreCase = true) }
+                ?.variantsFor(fuel)
+                .orEmpty()
+            val committed = if (variant.isNotBlank() && catalogue.none {
+                    it.variantId.equals(variantId, ignoreCase = true) || it.variantName.equals(variant, ignoreCase = true)
+                }
+            ) {
+                CarVariantItem(
+                    variantId = variantId.ifBlank { variant },
+                    variantName = variant,
+                    fuelType = fuel,
+                    modelId = modelId,
+                    fuelId = fuelId,
+                    cubicCapacity = cubicCapacity,
+                    seatingCapacity = seatingCapacity,
+                    exShowroomPrice = exShowroomPrice
+                )
+            } else {
+                null
+            }
+            return listOfNotNull(committed) + catalogue
+        }
+
+    val quoteVariantOptions: List<DropdownOption<String>>
+        get() = quoteVariantItems.map { DropdownOption(it.variantId, it.displayLabel) }
+
+    /** The committed variant in [quoteVariantOptions] (matched by Vehicle_ID, else by name). */
+    val selectedQuoteVariantOption: DropdownOption<String>?
+        get() {
+            val items = quoteVariantItems
+            val match = items.firstOrNull { it.variantId.equals(variantId, ignoreCase = true) }
+                ?: items.firstOrNull { it.variantName.equals(variant, ignoreCase = true) }
+            return match?.let { DropdownOption(it.variantId, it.displayLabel) }
         }
 
     val isFormValid: Boolean

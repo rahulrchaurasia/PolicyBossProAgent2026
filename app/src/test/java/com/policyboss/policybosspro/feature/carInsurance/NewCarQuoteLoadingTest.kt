@@ -366,15 +366,17 @@ class NewCarQuoteLoadingTest {
         vm.onAction(NewCarAction.OnGetQuotesClick)
         advanceUntilIdle()
 
-        // Results open on the first answer; 0 quotes is shown as is
+        // Results open on the first answer; the summary shows its spinner while no plan exists
         assertEquals(1, loadingEvents.count { it is QuoteLoadingUiEvent.NavigateToQuotes })
         assertEquals(0, vm.uiState.value.totalQuotesCount)
         assertTrue(vm.uiState.value.isFetchingMoreQuotes)
+        assertTrue(vm.uiState.value.isQuoteSummaryLoading)
 
         second.complete(Unit)
         advanceUntilIdle()
 
-        // Plans arrive: count grows, values bound, no second navigation
+        // Plans arrive: spinner hidden, count grows, values bound, no second navigation
+        assertFalse(vm.uiState.value.isQuoteSummaryLoading)
         assertEquals(2, vm.uiState.value.totalQuotesCount)
         assertEquals(2471, vm.uiState.value.minPremium)
         assertEquals(1, loadingEvents.count { it is QuoteLoadingUiEvent.NavigateToQuotes })

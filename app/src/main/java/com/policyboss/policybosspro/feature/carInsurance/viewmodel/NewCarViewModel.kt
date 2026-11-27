@@ -711,15 +711,7 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnVariantSelected -> {
-                _uiState.update {
-                    val summary = "${it.selectedModel?.label ?: ""} - ${action.option.label} - ${it.selectedFuel?.label ?: ""}"
-                    it.copy(
-                        selectedVariant = action.option,
-                        variant = action.option.label,
-                        carDetailsSummary = summary,
-                        showVariantSheet = false
-                    )
-                }
+                onQuoteVariantSelected(action.option)
             }
 
             is NewCarAction.OnFuelSelected -> {
@@ -804,6 +796,16 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnLeaveQuoteResults -> {
+                // An in-place re-quote may still be waiting on premium_initiate
+                if (isRefreshingQuotesInPlace) {
+                    quoteJob?.cancel()
+                    quoteJob = null
+                    isRefreshingQuotesInPlace = false
+                    // Never leave Loading behind: it would block the next Get Quotes
+                    _uiState.update {
+                        if (it.quoteState is QuoteFetchState.Loading) it.copy(quoteState = QuoteFetchState.Idle) else it
+                    }
+                }
                 cancelPremiumPolling()
             }
 
@@ -1165,6 +1167,11 @@ class NewCarViewModel @Inject constructor(
             }
 
             is NewCarAction.OnShowVariantSheet -> {
+                if (action.show) {
+                    // Normally already cached after vehicle_info_user; the sheet updates when it arrives
+                    val state = _uiState.value
+                    loadFuelVariants(state.modelId, state.make)
+                }
                 _uiState.update { it.copy(showVariantSheet = action.show) }
             }
 
@@ -1206,6 +1213,7 @@ class NewCarViewModel @Inject constructor(
 
         drainPendingQuoteLoadingEvents()
         cancelPremiumPolling()
+        isRefreshingQuotesInPlace = false
 
         _uiState.update {
             it.copy(
@@ -1319,23 +1327,105 @@ class NewCarViewModel @Inject constructor(
         }
     }
 
-    private fun startPremiumInitiate(state: NewCarUiState, vehicle: VehicleInfoDomain) {
+    /**
+     * premium_initiate, then premium_list_db polling. [openResults] = true is the Get Quotes
+     * journey (loader → results on the first answer); false re-quotes in place on the results
+     * screen (e.g. the agent picked another variant), so nothing navigates.
+     */
+    private fun startPremiumInitiate(
+        state: NewCarUiState,
+        vehicle: VehicleInfoDomain,
+        openResults: Boolean = true
+    ) {
         val input = state.toPremiumInitiateInput(vehicle.withFormSelections(state))
         quoteJob = viewModelScope.launch {
             try {
                 when (val result = repository.premiumInitiate(input)) {
-                    is Resource.Success -> onPremiumInitiated(result.data)
-                    is Resource.Error -> _uiState.update {
-                        it.copy(quoteState = QuoteFetchState.Error(result.message), errorMessage = result.message)
-                    }
+                    is Resource.Success -> onPremiumInitiated(result.data, openResults)
+                    is Resource.Error -> failQuoteFetch(result.message, openResults)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 val message = e.localizedMessage?.takeIf { it.isNotBlank() }
                     ?: "Something went wrong while curating your quotes. Please try again."
-                _uiState.update { it.copy(quoteState = QuoteFetchState.Error(message), errorMessage = message) }
+                failQuoteFetch(message, openResults)
+            } finally {
+                // Only this job's own end clears the flag (a cancelled older job must not)
+                if (!openResults && quoteJob === coroutineContext[Job]) isRefreshingQuotesInPlace = false
             }
+        }
+    }
+
+    /** True while an in-place re-quote (results screen) is waiting on premium_initiate. */
+    private var isRefreshingQuotesInPlace = false
+
+    /**
+     * Results-screen variant sheet: commit the picked beta_GetFuelVariant variant and, when it
+     * changed, fetch fresh quotes for it (premiums depend on Vehicle_ID).
+     */
+    private fun onQuoteVariantSelected(option: DropdownOption<String>) {
+        val state = _uiState.value
+        val item = state.quoteVariantItems.firstOrNull { it.variantId == option.value }
+        val isSameVariant = item == null || item.variantId.equals(state.variantId, ignoreCase = true)
+        if (isSameVariant && state.quoteState !is QuoteFetchState.Error) {
+            _uiState.update { it.copy(showVariantSheet = false) }
+            return
+        }
+        if (item != null) {
+            _uiState.update {
+                it.copy(
+                    variant = item.variantName,
+                    variantId = item.variantId,
+                    fuelId = item.fuelId.ifBlank { it.fuelId },
+                    cubicCapacity = item.cubicCapacity,
+                    seatingCapacity = item.seatingCapacity,
+                    exShowroomPrice = item.exShowroomPrice,
+                    selectedVariant = DropdownOption(item.variantId, item.displayLabel),
+                    carDetailsSummary = buildCarDetailsSummary(it.make, it.model, item.variantName, it.fuel, item.cubicCapacity),
+                    showVariantSheet = false
+                )
+            }
+        } else {
+            _uiState.update { it.copy(showVariantSheet = false) }
+        }
+        refreshQuotesInPlace()
+    }
+
+    /**
+     * Re-runs premium_initiate + polling for the current vehicle while the results screen stays
+     * open: the list empties and the existing top spinner / footer loader show until plans arrive.
+     */
+    private fun refreshQuotesInPlace() {
+        // Demo / manual flow has no vahan vehicle to price through premium_initiate
+        val vehicle = vehicleInfo ?: return
+
+        quoteJob?.cancel()
+        cancelPremiumPolling()
+        drainPendingQuoteLoadingEvents()
+        isRefreshingQuotesInPlace = true
+        _uiState.update {
+            it.copy(
+                quoteState = QuoteFetchState.Loading,
+                premiumInitiate = null,
+                premiumProgress = null,
+                premiumQuoteList = null,
+                quotes = emptyList(),
+                expandedAddOnQuoteIds = emptySet(),
+                premiumPollStatus = PremiumPollStatus.POLLING,
+                errorMessage = null
+            )
+        }
+        startPremiumInitiate(_uiState.value, vehicle, openResults = false)
+    }
+
+    /** Error from premium_initiate or the first premium_list_db answer. */
+    private fun failQuoteFetch(message: String, openResults: Boolean) {
+        showQuoteError(message)
+        if (!openResults) {
+            // Results stay open: stop the loaders and tell the agent
+            _uiState.update { it.copy(premiumPollStatus = PremiumPollStatus.STOPPED_ON_ERROR) }
+            sendFormEvent(NewCarUiEvent.ShowSnackbar(message))
         }
     }
 
@@ -1345,26 +1435,32 @@ class NewCarViewModel @Inject constructor(
      * Polling runs in [premiumPollJob] so it outlives this loader job; cancelling this job before
      * the first answer (loader closed) cancels the polling too.
      */
-    private suspend fun onPremiumInitiated(result: PremiumInitiateResult) {
+    private suspend fun onPremiumInitiated(result: PremiumInitiateResult, openResults: Boolean = true) {
+        cancelPremiumPolling()
         _uiState.update {
-            it.copy(premiumInitiate = result, crnNumber = result.crn, premiumProgress = null, premiumPollStatus = null)
+            it.copy(
+                premiumInitiate = result,
+                crnNumber = result.crn,
+                premiumProgress = null,
+                // In-place re-quote keeps the results-screen loaders up until the first answer
+                premiumPollStatus = if (openResults) null else PremiumPollStatus.POLLING
+            )
         }
 
         val searchReference = result.requestUniqueId
         if (searchReference.isBlank()) {
-            showQuoteError("We couldn't start your quotes. Please try again.")
+            failQuoteFetch("We couldn't start your quotes. Please try again.", openResults)
             return
         }
 
         val firstAnswer = CompletableDeferred<Unit>()
-        cancelPremiumPolling()
         val pollJob = viewModelScope.launch {
             try {
                 var isFirst = true
                 repository.pollPremiumQuotes(searchReference).collect { event ->
                     when (event) {
-                        is PremiumQuotePollEvent.Failed -> showQuoteError(event.message)
-                        is PremiumQuotePollEvent.Update -> applyPremiumQuotes(result, event, isFirst)
+                        is PremiumQuotePollEvent.Failed -> failQuoteFetch(event.message, openResults)
+                        is PremiumQuotePollEvent.Update -> applyPremiumQuotes(result, event, isFirst, openResults)
                     }
                     isFirst = false
                     firstAnswer.complete(Unit)
@@ -1386,7 +1482,8 @@ class NewCarViewModel @Inject constructor(
     private suspend fun applyPremiumQuotes(
         initiate: PremiumInitiateResult,
         update: PremiumQuotePollEvent.Update,
-        isFirst: Boolean
+        isFirst: Boolean,
+        openResults: Boolean = true
     ) {
         val list = update.quotes
         val quotes = list.quotes.mapIndexed { index, quote -> quote.copy(isRecommended = index == 0) }
@@ -1421,7 +1518,7 @@ class NewCarViewModel @Inject constructor(
                 errorMessage = null
             )
         }
-        if (isFirst) {
+        if (isFirst && openResults) {
             _quoteLoadingEvent.send(QuoteLoadingUiEvent.NavigateToQuotes(quoteId = quoteId, quoteUrl = null))
         }
     }

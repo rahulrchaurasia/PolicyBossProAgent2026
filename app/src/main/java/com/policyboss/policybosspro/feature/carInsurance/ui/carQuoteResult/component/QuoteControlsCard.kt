@@ -94,11 +94,7 @@ fun QuoteControlsCard(
             // ==========================================
             // Line 1: Make, Model, Fuel (Single Line, No Trailing Comma)
             // ==========================================
-            val specsSummary = listOf(
-                make.ifBlank { "Kia" },
-                model.ifBlank { "Seltos" },
-                fuel.ifBlank { "Diesel" }
-            ).filter { it.isNotBlank() }.joinToString(", ")
+            val specsSummary = listOf(make, model, fuel).filter { it.isNotBlank() }.joinToString(", ")
 
             Text(
                 text = specsSummary,
@@ -132,7 +128,7 @@ fun QuoteControlsCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = variantText.ifBlank { "PLUS 1.5 GTX AT (1493 CC)" },
+                        text = variantText.ifBlank { "Select variant" },
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppColors.TextPrimary,

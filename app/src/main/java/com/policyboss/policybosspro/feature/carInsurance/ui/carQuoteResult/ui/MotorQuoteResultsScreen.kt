@@ -352,6 +352,7 @@ fun MotorQuoteResultsScreen(
                             progressText = uiState.premiumProgressText,
                             progress = uiState.premiumProgressFraction,
                             skeletonCount = if (uiState.quotes.isEmpty()) 2 else 1,
+                            hasQuotes = uiState.quotes.isNotEmpty(),
                             modifier = Modifier
                                 .animateItem()
                                 .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -433,8 +434,9 @@ fun MotorQuoteResultsScreen(
     if (uiState.showVariantSheet) {
         AppSearchableBottomSheet(
             title = "Select Variant",
-            items = uiState.variantOptions,
-            selectedItem = uiState.selectedVariant,
+            // beta_GetFuelVariant variants of the committed Make + Model + Fuel
+            items = uiState.quoteVariantOptions,
+            selectedItem = uiState.selectedQuoteVariantOption,
             onItemSelected = { option ->
                 onAction(NewCarAction.OnVariantSelected(option))
             },
