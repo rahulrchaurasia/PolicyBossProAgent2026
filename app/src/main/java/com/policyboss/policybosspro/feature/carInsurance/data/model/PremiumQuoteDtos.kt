@@ -10,11 +10,12 @@ import kotlinx.serialization.json.JsonObject
 /*
  * DTOs for the quote APIs that run after the vahan lookup:
  *   premium_initiate  -> everything except the echoed "Request" block
- *   premium_summary   -> everything except the echoed "Request" block
+ *   premium_summary   -> the full response, including the echoed "Request" block
  *   premium_list_db   -> the full response, including Summary.Request_Core / Request_Product
  *
- * Fixed fields are typed. Blocks whose keys are dynamic (Master.Vehicle."Insurer_101",
- * premium breakup maps) or whose values change type between insurers (Request_Core,
+ * Fixed fields are typed. Master.Vehicle / Master.Rto are typed too, with their
+ * `Insurer_<id>` entries grouped by insurer id (see PremiumQuoteMasterDtos.kt). Blocks
+ * whose keys are dynamic (premium breakup maps) or whose values change type between insurers (Request_Core,
  * LM_Custom_Request) are kept as JSON, so nothing is dropped and a type change cannot
  * break parsing. Strings use LenientNullableStringSerializer because the backend
  * sometimes sends numbers, blanks or "null" in text fields.
@@ -29,13 +30,6 @@ data class PremiumSearchRequest(
     @SerialName("search_reference_number") val searchReferenceNumber: String,
     @SerialName("secret_key") val secretKey: String = NetworkConstants.SECRET_KEY,
     @SerialName("client_key") val clientKey: String = NetworkConstants.CLIENT_KEY
-)
-
-/** `Master` block of premium_initiate / premium_summary; keyed by `Insurer_<id>`, so kept as JSON. */
-@Serializable
-data class PremiumMasterDto(
-    @SerialName("Vehicle") val vehicle: JsonObject? = null,
-    @SerialName("Rto") val rto: JsonObject? = null
 )
 
 // =====================================================================
@@ -69,7 +63,7 @@ data class PremiumInitiateSummaryDto(
 )
 
 // =====================================================================
-// premium_summary (POST quote/premium_summary) — "Request" is not mapped
+// premium_summary (POST quote/premium_summary) — full response
 // =====================================================================
 
 @Serializable
@@ -79,6 +73,8 @@ data class PremiumSummaryResponseDto(
     @Serializable(with = LenientNullableStringSerializer::class)
     val status: String? = null,
     @SerialName("Summary") val summary: PremiumSummaryDto? = null,
+    /** The quote request as the backend stored it (vehicle, RTO, policy, RM / POSP details). */
+    @SerialName("Request") val request: PremiumSummaryRequestDto? = null,
     @SerialName("Addon_Request") val addonRequest: JsonElement? = null,
     @SerialName("Master") val master: PremiumMasterDto? = null
 )

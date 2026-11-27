@@ -246,7 +246,7 @@ class PremiumQuoteListTest {
     }
 
     @Test
-    fun `premium_summary keeps Summary and Master but not Request`() {
+    fun `premium_summary maps Summary, Request and typed Master`() {
         val dto = testJson.decodeFromString(
             PremiumSummaryResponseDto.serializer(),
             """
@@ -255,20 +255,68 @@ class PremiumQuoteListTest {
                "User_Data_Id":21024837,"Created_On":"2026-11-26T09:29:05.048Z","PB_CRN":12698778,
                "Client_Id":2,"Request_Id":41341670,"Status":"complete","Total":18,"Pending":0,
                "Complete":18,"Success":14,"Fail":4,"Total_Execution_Time":9.34},
-             "Request":{"vehicle_id":6917,"secret_key":"SECRET-X"},
+             "Request":{"vehicle_id":6917,"rto_id":579,"crn":12698778,"registration_no":"MH-01-BB-0197",
+               "rm_reporting_details_direct_reporting_uid":"107602","rm_reporting_details_uid":119591,
+               "pa_owner_driver_si":1500000,"pa_paid_driver_si":"0","geo_lat":0,"visitor_id":null,
+               "posp_gender":"","recommended_vehicle_insurer_list":[],"policy_expiry_date":"2026-11-29",
+               "vehicle_full":"MARUTI|WAGON R|VXI+|PETROL|998|0","is_claim_exists":"yes"},
              "Addon_Request":{},
-             "Master":{"Vehicle":{"Vehicle_ID":6917,"Insurer_101":{"Premium_Status":1}},
-                       "Rto":{"VehicleCity_RTOCode":"MH01","Insurer_2":{"RI_Master":{"Insurer_Rto_Code":"MH01"}}}}}
+             "Master":{
+               "Vehicle":{"Vehicle_ID":6917,"Model_Name":"WAGON R","ExShoroomPrice":407000,"Mapped_Insurer_Count":16,
+                 "Is_Base":"Yes","Insurer_Vehicle_Insurer_Segmant":"0",
+                 "Insurer_101":{"Premium_Status":1,"Status_Id":2,"Insurer_Vehicle_ID":221189,"Insurer_ID":101},
+                 "Insurer_30":{"VI_Master":{"Insurer_Vehicle_Code":"CATEGORY 39","Insurer_Vehicle_ExShowRoom":515000,
+                   "Is_Active":null,"MASTER CODE (IDV CODE)":"0"},"Premium_Status_CRN":11379205,"Insurer_ID":30},
+                 "Insurer_17":{"VI_Master":{"Insurer_Vehicle_FuelType_Code":1,"Insurer_Vehicle_Insurer_BodyTypeCode":""}}},
+               "Rto":{"VehicleCity_RTOCode":"MH01","IsActive":true,"VehicleTariff_Zone":"A",
+                 "Insurer_8":{"RI_Master":{"Insurer_Rto_Code":24001,"Insurer_Rto_State_Code":24}},
+                 "Insurer_14":{"RI_Master":{"Insurer_Rto_Code":"MH01","IsActive":"","Insurer_Rto_City_Code":1916}},
+                 "Insurer_18":{"RI_Master":{"Insurer_Rto_City_Name":0,"Insurer_Rto_District_Name":"Mumbai Central"}}}}}
             """.trimIndent()
         )
 
         assertEquals("Not_Cached", dto.status)
         assertEquals(41341670L, dto.summary?.requestId)
         assertEquals(9.34, dto.summary?.totalExecutionTime)
-        assertTrue(dto.master!!.vehicle!!.containsKey("Insurer_101"))
-        assertEquals("MH01", dto.master!!.rto!!["VehicleCity_RTOCode"]!!.jsonPrimitive.content)
-        val encoded = testJson.encodeToJsonElement(PremiumSummaryResponseDto.serializer(), dto).jsonObject
-        assertTrue("Request is not mapped", "Request" !in encoded)
+
+        val request = dto.request!!
+        assertEquals(6917L, request.vehicleId)
+        assertEquals(579, request.rtoId)
+        assertEquals("MH-01-BB-0197", request.registrationNo)
+        assertEquals(107602L, request.rmReportingDirectReportingUid)
+        assertEquals(119591L, request.rmReportingDetailsUid)
+        assertEquals(1_500_000.0, request.paOwnerDriverSi)
+        assertEquals(0.0, request.paPaidDriverSi)
+        assertEquals(null, request.visitorId)
+        assertEquals(null, request.pospGender)
+        assertEquals("yes", request.isClaimExists)
+
+        val vehicle = dto.master!!.vehicle!!
+        assertEquals(6917L, vehicle.vehicleId)
+        assertEquals(407000.0, vehicle.exShowroomPrice)
+        assertEquals("0", vehicle.insurerSegment)
+        assertEquals(setOf(101, 30, 17), vehicle.insurers.keys)
+        assertEquals(221189L, vehicle.insurers[101]?.insurerVehicleId)
+        assertEquals(null, vehicle.insurers[101]?.viMaster)
+        assertEquals("CATEGORY 39", vehicle.insurers[30]?.viMaster?.code)
+        assertEquals(515000.0, vehicle.insurers[30]?.viMaster?.exShowroom)
+        assertEquals(11379205L, vehicle.insurers[30]?.premiumStatusCrn)
+        assertEquals("1", vehicle.insurers[17]?.viMaster?.fuelTypeCode)
+
+        val rto = dto.master!!.rto!!
+        assertEquals("MH01", rto.rtoCode)
+        assertEquals(true, rto.isActive)
+        assertEquals("24001", rto.insurers[8]?.riMaster?.rtoCode)
+        assertEquals("24", rto.insurers[8]?.riMaster?.stateCode)
+        assertEquals(null, rto.insurers[14]?.riMaster?.isActive)
+        assertEquals("1916", rto.insurers[14]?.riMaster?.cityCode)
+        assertEquals("0", rto.insurers[18]?.riMaster?.cityName)
+
+        // Encoding restores the backend's Insurer_<id> keys.
+        val encodedVehicle = testJson.encodeToJsonElement(PremiumSummaryResponseDto.serializer(), dto)
+            .jsonObject["Master"]!!.jsonObject["Vehicle"]!!.jsonObject
+        assertTrue("Insurer_101" in encodedVehicle)
+        assertTrue("insurers" !in encodedVehicle)
     }
 
     // -----------------------------------------------------------------
