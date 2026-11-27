@@ -413,6 +413,12 @@ class NewCarViewModel @Inject constructor(
 
             is NewCarAction.OnInsurerSheetOpened -> loadInsurers()
 
+            // Results-screen variant sheet: always the committed model, never a form-sheet draft
+            is NewCarAction.OnRetryQuoteVariants -> {
+                val state = _uiState.value
+                loadFuelVariants(modelId = state.modelId, makeName = state.make, force = true)
+            }
+
             is NewCarAction.OnRetryFuelVariants -> {
                 val state = _uiState.value
                 val brandModel = state.draftBrandModel
@@ -1262,6 +1268,10 @@ class NewCarViewModel @Inject constructor(
             sendFormEvent(NewCarUiEvent.ShowSnackbar("Please fill all mandatory fields and give consent"))
             return
         }
+
+        // Safety net for the results-screen variant sheet: no-op when the catalogue for this
+        // model is already loaded or in flight; refetches if the post-vahan prefetch failed.
+        loadFuelVariants(state.modelId, state.make)
 
         drainPendingQuoteLoadingEvents()
         cancelPremiumPolling()

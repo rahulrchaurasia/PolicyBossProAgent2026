@@ -73,7 +73,9 @@ fun <T> AppSearchableBottomSheet(
     modifier: Modifier = Modifier,
     searchPlaceholder: String = "Search...",
     selectedItem: DropdownOption<T>? = null,
-    showSearch: Boolean = true
+    showSearch: Boolean = true,
+    /** Optional row between the search bar and the list, e.g. a loading or retry message. */
+    headerContent: (@Composable () -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var searchQuery by remember { mutableStateOf("") }
@@ -211,6 +213,8 @@ fun <T> AppSearchableBottomSheet(
             }
 
             HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+
+            headerContent?.invoke()
 
             // Items List
             LazyColumn(

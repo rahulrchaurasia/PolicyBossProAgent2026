@@ -14,6 +14,8 @@ sealed interface NewCarAction {
     // Live Make/Model catalogue (bottom sheet)
     data object OnRetryModelList : NewCarAction
     data object OnRetryFuelVariants : NewCarAction
+    /** Retry beta_GetFuelVariant for the committed model (results-screen variant sheet). */
+    data object OnRetryQuoteVariants : NewCarAction
 
     // Previous / TP insurer sheet opened: (re)load the getPrevInsurer list if it is empty
     data object OnInsurerSheetOpened : NewCarAction

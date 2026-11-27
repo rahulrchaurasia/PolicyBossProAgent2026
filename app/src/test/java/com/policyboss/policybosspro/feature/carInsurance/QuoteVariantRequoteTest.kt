@@ -6,6 +6,7 @@ import com.policyboss.policybosspro.feature.carInsurance.data.model.CarQuoteResp
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.CarVariantItem
 import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantCatalog
+import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantState
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumInitiateInput
@@ -73,6 +74,64 @@ class QuoteVariantRequoteTest {
         vm.onAction(NewCarAction.OnGetQuotesClick)
         advanceUntilIdle()
         vm.onAction(NewCarAction.OnQuoteNavigationHandled)
+    }
+
+    /** Fake whose beta_GetFuelVariant answers come from [answers] in order; the last repeats. */
+    private fun variantRepository(vararg answers: Resource<FuelVariantCatalog>): FakeCarInsuranceRepository {
+        var call = 0
+        return object : FakeCarInsuranceRepository(
+            fuelVariants = { _, _ -> answers[(call++).coerceAtMost(answers.lastIndex)] }
+        ) {
+            override suspend fun getCarQuotes(request: CarQuoteRequest): Resource<CarQuoteResponse> =
+                error("car-number journey must not call getCarQuotes")
+        }
+    }
+
+    @Test
+    fun `Get Quotes refetches variants when the post-vahan prefetch failed`() = runTest {
+        val repo = variantRepository(Resource.Error("Network down"), Resource.Success(seltosCatalog))
+        val vm = NewCarViewModel(repo)
+
+        vm.initForMode(entryMode = CarEntryMode.WITH_CAR_NUMBER, carNumber = "RJ14-1234")
+        advanceUntilIdle()
+        assertEquals(1, repo.fuelVariantCalls.size)
+        assertTrue(vm.uiState.value.quoteVariantLoadState is FuelVariantState.Error)
+
+        vm.onAction(NewCarAction.OnGetQuotesClick)
+        advanceUntilIdle()
+
+        assertEquals(2, repo.fuelVariantCalls.size)
+        assertEquals(FuelVariantState.Success, vm.uiState.value.quoteVariantLoadState)
+        assertEquals(listOf("SELTOS_PLUS_1.5_GTX_AT", "6917", "6918"), vm.uiState.value.quoteVariantOptions.map { it.value })
+    }
+
+    @Test
+    fun `Get Quotes does not refetch variants already loaded after vahan`() = runTest {
+        val repo = variantRepository(Resource.Success(seltosCatalog))
+        val vm = NewCarViewModel(repo)
+
+        openResults(vm)
+
+        assertEquals(1, repo.fuelVariantCalls.size)
+        assertEquals(FuelVariantState.Success, vm.uiState.value.quoteVariantLoadState)
+    }
+
+    @Test
+    fun `variant sheet keeps the committed variant on error and retries for the committed model`() = runTest {
+        val repo = variantRepository(Resource.Error("Network down"))
+        val vm = NewCarViewModel(repo)
+        openResults(vm)
+
+        val failed = vm.uiState.value
+        assertEquals(FuelVariantState.Error("Network down"), failed.quoteVariantLoadState)
+        assertEquals(listOf("SELTOS_PLUS_1.5_GTX_AT"), failed.quoteVariantOptions.map { it.value })
+
+        val callsBefore = repo.fuelVariantCalls.size
+        vm.onAction(NewCarAction.OnRetryQuoteVariants)
+        advanceUntilIdle()
+
+        assertEquals(callsBefore + 1, repo.fuelVariantCalls.size)
+        assertEquals(failed.modelId, repo.fuelVariantCalls.last().first)
     }
 
     @Test

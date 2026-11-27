@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.sp
 import com.policyboss.policybosspro.R
 import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.CpaCoverageOption
+import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantState
+import androidx.compose.material3.CircularProgressIndicator
 import com.policyboss.policybosspro.feature.carInsurance.model.MotorQuote
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
@@ -440,7 +442,21 @@ fun MotorQuoteResultsScreen(
             onItemSelected = { option ->
                 onAction(NewCarAction.OnVariantSelected(option))
             },
-            onDismiss = { onAction(NewCarAction.OnShowVariantSheet(false)) }
+            onDismiss = { onAction(NewCarAction.OnShowVariantSheet(false)) },
+            headerContent = when (val loadState = uiState.quoteVariantLoadState) {
+                is FuelVariantState.Loading -> {
+                    { VariantSheetLoadingRow() }
+                }
+                is FuelVariantState.Error -> {
+                    {
+                        VariantSheetErrorRow(
+                            message = loadState.message,
+                            onRetry = { onAction(NewCarAction.OnRetryQuoteVariants) }
+                        )
+                    }
+                }
+                else -> null
+            }
         )
     }
 
@@ -472,6 +488,46 @@ fun MotorQuoteResultsScreen(
             containerColor = Color.White,
             shape = RoundedCornerShape(16.dp)
         )
+    }
+}
+
+/** Variant sheet: the catalogue is still loading; the committed variant stays selectable. */
+@Composable
+private fun VariantSheetLoadingRow() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+            color = AppColors.PrimaryBlue
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(text = "Loading variants…", fontSize = 13.sp, color = AppColors.TextSecondary)
+    }
+}
+
+/** Variant sheet: beta_GetFuelVariant failed; only the committed variant is listed. */
+@Composable
+private fun VariantSheetErrorRow(message: String, onRetry: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = message.ifBlank { "Couldn't load variants." },
+            fontSize = 13.sp,
+            color = AppColors.TextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onRetry) {
+            Text(text = "Retry", fontWeight = FontWeight.SemiBold, color = AppColors.PrimaryBlue)
+        }
     }
 }
 

@@ -443,6 +443,17 @@ data class NewCarUiState(
     val quoteVariantOptions: List<DropdownOption<String>>
         get() = quoteVariantItems.map { DropdownOption(it.variantId, it.displayLabel) }
 
+    /**
+     * Load state of the catalogue behind [quoteVariantItems]: Success once the committed
+     * model's catalogue is in state, otherwise the in-flight / failed fetch state.
+     */
+    val quoteVariantLoadState: FuelVariantState
+        get() = when {
+            fuelVariantCatalog?.modelId?.equals(modelId, ignoreCase = true) == true -> FuelVariantState.Success
+            fuelVariantState is FuelVariantState.Success -> FuelVariantState.Idle
+            else -> fuelVariantState
+        }
+
     /** The committed variant in [quoteVariantOptions] (matched by Vehicle_ID, else by name). */
     val selectedQuoteVariantOption: DropdownOption<String>?
         get() {
