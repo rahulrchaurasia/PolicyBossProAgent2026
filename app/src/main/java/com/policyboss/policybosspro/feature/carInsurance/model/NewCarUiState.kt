@@ -136,6 +136,11 @@ data class NewCarUiState(
     val fuelVariantState: FuelVariantState = FuelVariantState.Idle,
     val fuelVariantCatalog: FuelVariantCatalog? = null,
 
+    // Confirm popup on the quote screens (texts in QuotePopup)
+    val activeQuotePopup: QuotePopup? = null,
+    /** Results-screen variant picked but not yet confirmed via [QuotePopup.RecalculateVariant]. */
+    val pendingQuoteVariant: CarVariantItem? = null,
+
     // Selected variant details (from beta_GetFuelVariant / vehicle_info_user)
     val cubicCapacity: String = "",
     val seatingCapacity: String = "",

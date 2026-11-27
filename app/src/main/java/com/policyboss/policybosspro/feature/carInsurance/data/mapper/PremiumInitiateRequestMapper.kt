@@ -37,6 +37,9 @@ fun buildPremiumInitiateRequest(
     val isBreakin = isPolicyExpired(expiryDate, today).yesNo()
 
     return PremiumInitiateRequest(
+        // Always 0: every premium_initiate (first quote and every re-quote) starts a new CRN;
+        // never copy the CRN of an earlier response into the request.
+        crn = 0,
         vehicleId = vehicle.variantId.toIntOrZero(),
         rtoId = vehicle.rtoCode.toIntOrZero(),
         vehicleRegistrationDate = premium.registrationDateApi

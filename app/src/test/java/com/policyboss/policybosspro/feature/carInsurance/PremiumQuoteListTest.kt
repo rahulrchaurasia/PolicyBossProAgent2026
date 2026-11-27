@@ -2,6 +2,8 @@ package com.policyboss.policybosspro.feature.carInsurance
 
 import kotlin.time.Duration.Companion.seconds
 import com.policyboss.policybosspro.feature.carInsurance.data.repository.premiumPollDelay
+import com.policyboss.policybosspro.feature.carInsurance.data.repository.steppedPremiumPollDelay
+import com.policyboss.policybosspro.feature.carInsurance.data.repository.USE_STEPPED_PREMIUM_POLL
 import kotlinx.coroutines.flow.toList
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumQuotePollEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumPollStatus
@@ -348,11 +350,11 @@ class PremiumQuoteListTest {
     fun `polls premium_list_db one call at a time until complete`() = runTest {
         val api = SequenceApi(listOf(listBody("pending", 10), listBody("pending", 3), listBody("complete", 0)))
 
-        val events = repository(api).pollPremiumQuotes(srn).toList()
+        val events = repository(api).pollPremiumQuotes(srn, useSteppedSchedule = false).toList()
 
         assertEquals(listOf(PremiumPollStatus.POLLING, PremiumPollStatus.POLLING, PremiumPollStatus.COMPLETE), statuses(events))
         assertEquals(3, api.requests.size)
-        assertEquals(2_000L, currentTime) // two 1 s waits in the fast phase
+        assertEquals(2_000L, currentTime) // old schedule: two 1 s waits in the fast phase
         val body = testJson.encodeToJsonElement(PremiumSearchRequest.serializer(), api.requests.first()).jsonObject
         assertEquals(setOf("search_reference_number", "secret_key", "client_key"), body.keys)
         assertEquals(srn, api.requests.first().searchReferenceNumber)
@@ -370,13 +372,39 @@ class PremiumQuoteListTest {
     fun `stops after 60 s while still pending and keeps the plans`() = runTest {
         val api = SequenceApi(listOf(listBody("pending", 5)))
 
-        val events = repository(api).pollPremiumQuotes(srn).toList()
+        val events = repository(api).pollPremiumQuotes(srn, useSteppedSchedule = false).toList()
 
-        // 16 calls 1 s apart (0..15 s), then 15 calls 3 s apart (18..60 s)
+        // Old schedule: 16 calls 1 s apart (0..15 s), then 15 calls 3 s apart (18..60 s)
         assertEquals(31, api.requests.size)
         assertEquals(60_000L, currentTime)
         assertEquals(PremiumPollStatus.TIMED_OUT, statuses(events).last())
         assertEquals(2, (events.last() as PremiumQuotePollEvent.Update).quotes.quotes.size)
+    }
+
+    @Test
+    fun `stepped schedule waits 1, 3, 3, 3 s, then 10 s`() {
+        assertEquals(
+            listOf(1, 3, 3, 3, 10, 10, 10).map { it.seconds },
+            (0..6).map { steppedPremiumPollDelay(it) }
+        )
+        assertTrue("stepped schedule is the default", USE_STEPPED_PREMIUM_POLL)
+    }
+
+    @Test
+    fun `stepped schedule calls at 0, 1, 4, 7, 10, 20 to 60 s, then times out`() = runTest {
+        val api = object : ThrowingCarInsuranceApi() {
+            val callTimes = mutableListOf<Long>()
+            override suspend fun premiumList(request: PremiumSearchRequest): Response<PremiumListResponseDto> {
+                callTimes += currentTime
+                return Response.success(testJson.decodeFromString(PremiumListResponseDto.serializer(), listBody("pending", 5)))
+            }
+        }
+        val repo = CarInsuranceRepository(api, testAppDataManager(), testJson, VehicleInfoSessionProvider())
+
+        val events = repo.pollPremiumQuotes(srn).toList()
+
+        assertEquals(listOf(0L, 1, 4, 7, 10, 20, 30, 40, 50, 60).map { it * 1_000 }, api.callTimes)
+        assertEquals(PremiumPollStatus.TIMED_OUT, statuses(events).last())
     }
 
     @Test

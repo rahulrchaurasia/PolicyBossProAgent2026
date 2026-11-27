@@ -120,6 +120,10 @@ sealed interface NewCarAction {
     // Quote Controls & CPA Options Actions
     data class OnSelectCpaCoverageOption(val option: CpaCoverageOption) : NewCarAction
     data class OnShowVariantSheet(val show: Boolean) : NewCarAction
+    /** Primary button of NewCarUiState.activeQuotePopup. */
+    data object OnConfirmQuotePopup : NewCarAction
+    /** Close (X), back press or outside tap on the active quote popup. */
+    data object OnDismissQuotePopup : NewCarAction
     data class OnShowQuoteControlInfo(val title: String, val message: String) : NewCarAction
     data object OnDismissQuoteControlInfo : NewCarAction
 }

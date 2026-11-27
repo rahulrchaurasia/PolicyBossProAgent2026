@@ -57,7 +57,6 @@ import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiState
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteFilter.model.FilterCategory
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FeedbackDialog
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.FilterBottomSheet
-import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.DeclinedInsurersCard
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteFetchTimedOutNote
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteFetchingFooter
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.InsurerQuoteCard
@@ -66,6 +65,8 @@ import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.compo
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.QuoteValidityBanner
 import com.policyboss.policybosspro.feature.carInsurance.ui.carQuoteResult.component.SortBottomSheet
 import com.policyboss.policybosspro.ui.components.bottomSheet.AppSearchableBottomSheet
+import com.policyboss.policybosspro.ui.components.dialog.AppConfirmPopup
+import androidx.compose.runtime.key
 import com.policyboss.policybosspro.ui.theme.AppColors
 
 @Composable
@@ -369,16 +370,6 @@ fun MotorQuoteResultsScreen(
                         )
                     }
                 }
-
-                // Insurers that could not quote (premium_list_db errors)
-                if (uiState.declinedInsurers.isNotEmpty()) {
-                    item(key = "declined_insurers") {
-                        DeclinedInsurersCard(
-                            insurers = uiState.declinedInsurers,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                        )
-                    }
-                }
             }
 
             // Floating Headset Support Button on Right Edge (matches mockup)
@@ -458,6 +449,21 @@ fun MotorQuoteResultsScreen(
                 else -> null
             }
         )
+    }
+
+    // Confirm popup (texts in QuotePopup), e.g. Re-calculate after a variant change
+    uiState.activeQuotePopup?.let { popup ->
+        // key: a new popup gets a fresh entry animation
+        key(popup) {
+            AppConfirmPopup(
+                title = popup.title,
+                message = popup.message,
+                confirmLabel = popup.confirmLabel,
+                iconRes = popup.iconRes,
+                onConfirm = { onAction(NewCarAction.OnConfirmQuotePopup) },
+                onDismiss = { onAction(NewCarAction.OnDismissQuotePopup) }
+            )
+        }
     }
 
     // Quote Control Info Dialog (IDV, Addons, CPA)

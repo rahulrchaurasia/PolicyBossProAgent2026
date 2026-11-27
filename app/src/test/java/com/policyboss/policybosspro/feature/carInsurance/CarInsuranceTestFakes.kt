@@ -171,7 +171,10 @@ open class FakeCarInsuranceRepository(
     private val premiumQuotes: suspend (String) -> Resource<PremiumQuoteList> = { srn ->
         Resource.Success(samplePremiumQuoteList(srn))
     },
-    private val premiumPollEvents: ((String) -> Flow<PremiumQuotePollEvent>)? = null
+    private val premiumPollEvents: ((String) -> Flow<PremiumQuotePollEvent>)? = null,
+    private val premiumSummaryAnswer: suspend (String) -> Resource<PremiumProgress> = {
+        Resource.Success(PremiumProgress(status = "pending", total = 18, pending = 18))
+    }
 ) : CarInsuranceRepository(ThrowingCarInsuranceApi(), testAppDataManager(), testJson, VehicleInfoSessionProvider()) {
     var vehicleInfoCalls = 0
         private set
@@ -212,7 +215,20 @@ open class FakeCarInsuranceRepository(
 
     override suspend fun premiumInitiate(input: PremiumInitiateInput): Resource<PremiumInitiateResult> {
         premiumInitiateInputs += input
+        quoteApiCalls += "initiate"
         return premium(input)
+    }
+
+    /** Search references passed to premium_summary. */
+    val premiumSummarySearches = mutableListOf<String>()
+
+    /** Order of the quote API calls, e.g. [initiate, summary, list]. */
+    val quoteApiCalls = mutableListOf<String>()
+
+    override suspend fun premiumSummary(searchReferenceNumber: String): Resource<PremiumProgress> {
+        premiumSummarySearches += searchReferenceNumber
+        quoteApiCalls += "summary"
+        return premiumSummaryAnswer(searchReferenceNumber)
     }
 
     /** Search references passed to premium_list_db polling. */
@@ -228,9 +244,11 @@ open class FakeCarInsuranceRepository(
         fastPhase: kotlin.time.Duration,
         slowInterval: kotlin.time.Duration,
         maxDuration: kotlin.time.Duration,
-        maxConsecutiveFailures: Int
+        maxConsecutiveFailures: Int,
+        useSteppedSchedule: Boolean
     ): Flow<PremiumQuotePollEvent> {
         premiumQuoteSearches += searchReferenceNumber
+        quoteApiCalls += "list"
         premiumPollEvents?.let { return it(searchReferenceNumber) }
         return kotlinx.coroutines.flow.flow {
             when (val result = premiumQuotes(searchReferenceNumber)) {

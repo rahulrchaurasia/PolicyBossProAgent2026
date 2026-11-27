@@ -264,9 +264,10 @@ open class CarInsuranceRepository @Inject constructor(
      * the results list can grow while insurers respond.
      *
      * - Hit 0 runs immediately. If it fails, a single [PremiumQuotePollEvent.Failed] is emitted.
-     * - Then sequential calls (never overlapping, never parallel) while `Summary.Status` is pending:
-     *   [fastInterval] apart during the first [fastPhase], when insurers answer quickly, then
-     *   [slowInterval] apart (see [premiumPollDelay]), so the count visibly grows (0 → 4 → 8 → 14).
+     * - Then sequential calls (never overlapping, never parallel) while `Summary.Status` is pending.
+     *   With [useSteppedSchedule] (default [USE_STEPPED_PREMIUM_POLL]) the waits are 1 s, 3 s, 3 s,
+     *   3 s, then 10 s (see [steppedPremiumPollDelay]); otherwise the old schedule: [fastInterval]
+     *   apart during the first [fastPhase], then [slowInterval] apart (see [premiumPollDelay]).
      * - Stops on `complete`, after [maxDuration] of polling ([PremiumPollStatus.TIMED_OUT]), or after
      *   [maxConsecutiveFailures] failed calls in a row ([PremiumPollStatus.STOPPED_ON_ERROR]).
      *   A single failed call is skipped and retried on the next tick; the plans shown are kept.
@@ -278,7 +279,8 @@ open class CarInsuranceRepository @Inject constructor(
         fastPhase: Duration = PREMIUM_POLL_FAST_PHASE,
         slowInterval: Duration = PREMIUM_POLL_SLOW_INTERVAL,
         maxDuration: Duration = PREMIUM_POLL_MAX_DURATION,
-        maxConsecutiveFailures: Int = PREMIUM_POLL_MAX_FAILURES
+        maxConsecutiveFailures: Int = PREMIUM_POLL_MAX_FAILURES,
+        useSteppedSchedule: Boolean = USE_STEPPED_PREMIUM_POLL
     ): Flow<PremiumQuotePollEvent> = flow {
         var latest: PremiumQuoteList? = null
         var hits = 0
@@ -323,7 +325,11 @@ open class CarInsuranceRepository @Inject constructor(
                 }
             }
             hits++
-            val wait = premiumPollDelay(elapsed, fastInterval, fastPhase, slowInterval)
+            val wait = if (useSteppedSchedule) {
+                steppedPremiumPollDelay(hits - 1)
+            } else {
+                premiumPollDelay(elapsed, fastInterval, fastPhase, slowInterval)
+            }
             delay(wait)
             elapsed += wait
         }
@@ -597,6 +603,19 @@ internal val PREMIUM_POLL_FAST_PHASE: Duration = 15.seconds
 internal val PREMIUM_POLL_SLOW_INTERVAL: Duration = 3.seconds
 internal val PREMIUM_POLL_MAX_DURATION: Duration = 60.seconds
 internal const val PREMIUM_POLL_MAX_FAILURES = 3
+
+/**
+ * premium_list_db schedule switch. true: waits of 1 s, 3 s, 3 s, 3 s, then 10 s until 60 s
+ * (calls at 0, 1, 4, 7, 10, 20 … 60 s). Set false to go back to the old schedule
+ * (1 s for 15 s, then 3 s) — [premiumPollDelay] and its constants are kept for that.
+ */
+internal const val USE_STEPPED_PREMIUM_POLL = true
+internal val PREMIUM_POLL_STEPS: List<Duration> = listOf(1.seconds, 3.seconds, 3.seconds, 3.seconds)
+internal val PREMIUM_POLL_STEPPED_TAIL: Duration = 10.seconds
+
+/** Wait before poll call number [waitIndex] + 1 (0 = the wait after the first call). */
+internal fun steppedPremiumPollDelay(waitIndex: Int): Duration =
+    PREMIUM_POLL_STEPS.getOrElse(waitIndex) { PREMIUM_POLL_STEPPED_TAIL }
 
 /** Wait before the next premium_list_db call, given the time already spent polling. */
 internal fun premiumPollDelay(

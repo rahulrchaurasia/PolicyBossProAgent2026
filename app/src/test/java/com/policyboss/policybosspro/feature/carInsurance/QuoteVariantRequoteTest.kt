@@ -7,6 +7,12 @@ import com.policyboss.policybosspro.feature.carInsurance.model.CarEntryMode
 import com.policyboss.policybosspro.feature.carInsurance.model.CarVariantItem
 import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantCatalog
 import com.policyboss.policybosspro.feature.carInsurance.model.FuelVariantState
+import com.policyboss.policybosspro.feature.carInsurance.model.QuotePopup
+import com.policyboss.policybosspro.feature.carInsurance.data.mapper.buildPremiumInitiateRequest
+import com.policyboss.policybosspro.feature.carInsurance.data.model.PremiumInitiateRequest
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import java.time.LocalDate
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarAction
 import com.policyboss.policybosspro.feature.carInsurance.model.NewCarUiEvent
 import com.policyboss.policybosspro.feature.carInsurance.model.PremiumInitiateInput
@@ -165,10 +171,23 @@ class QuoteVariantRequoteTest {
         vm.onAction(NewCarAction.OnShowVariantSheet(true))
         advanceUntilIdle()
         vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6917", "HTK PLUS 1.5 MT (1493CC)")))
+        advanceUntilIdle()
 
-        // Immediately: list cleared, results-screen loaders on, sheet closed
+        // Pick only: sheet closed, Re-calculate popup up, nothing committed or fetched yet
+        val pending = vm.uiState.value
+        assertFalse(pending.showVariantSheet)
+        assertEquals(QuotePopup.RecalculateVariant, pending.activeQuotePopup)
+        assertEquals("6917", pending.pendingQuoteVariant?.variantId)
+        assertEquals("SELTOS_PLUS_1.5_GTX_AT", pending.variantId)
+        assertEquals(1, repo.premiumInitiateInputs.size)
+        assertEquals(2, pending.quotes.size)
+
+        vm.onAction(NewCarAction.OnConfirmQuotePopup)
+
+        // Immediately: list cleared, results-screen loaders on, popup closed
         val refreshing = vm.uiState.value
-        assertFalse(refreshing.showVariantSheet)
+        assertEquals(null, refreshing.activeQuotePopup)
+        assertEquals(null, refreshing.pendingQuoteVariant)
         assertEquals("HTK PLUS 1.5 MT", refreshing.variant)
         assertEquals("6917", refreshing.variantId)
         assertEquals("5", refreshing.seatingCapacity)
@@ -209,9 +228,69 @@ class QuoteVariantRequoteTest {
         val vm = NewCarViewModel(repository())
         openResults(vm)
         vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6917", "HTK PLUS 1.5 MT (1493CC)")))
+        vm.onAction(NewCarAction.OnConfirmQuotePopup)
         advanceUntilIdle()
         assertEquals("HTK PLUS 1.5 MT (1493CC)", vm.uiState.value.quoteVariantDisplayText)
         assertEquals(vm.uiState.value.selectedQuoteVariantOption?.label, vm.uiState.value.quoteVariantDisplayText)
+    }
+
+    @Test
+    fun `dismissing the Re-calculate popup keeps the old variant and quotes without any API call`() = runTest {
+        val repo = repository()
+        val vm = NewCarViewModel(repo)
+        openResults(vm)
+        val before = vm.uiState.value
+        val apiCallsBefore = repo.quoteApiCalls.toList()
+
+        vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6917", "HTK PLUS 1.5 MT (1493CC)")))
+        advanceUntilIdle()
+        assertEquals(QuotePopup.RecalculateVariant, vm.uiState.value.activeQuotePopup)
+
+        vm.onAction(NewCarAction.OnDismissQuotePopup)
+        advanceUntilIdle()
+
+        val after = vm.uiState.value
+        assertEquals(null, after.activeQuotePopup)
+        assertEquals(null, after.pendingQuoteVariant)
+        assertEquals(before.variantId, after.variantId)
+        assertEquals(before.variant, after.variant)
+        assertEquals(before.quotes, after.quotes)
+        assertEquals(apiCallsBefore, repo.quoteApiCalls)
+    }
+
+    @Test
+    fun `confirming runs the bundle once in order initiate, summary, list`() = runTest {
+        val repo = repository()
+        val vm = NewCarViewModel(repo)
+        openResults(vm)
+        assertEquals(listOf("initiate", "summary", "list"), repo.quoteApiCalls)
+
+        vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6917", "HTK PLUS 1.5 MT (1493CC)")))
+        vm.onAction(NewCarAction.OnConfirmQuotePopup)
+        advanceUntilIdle()
+
+        assertEquals(listOf("initiate", "summary", "list", "initiate", "summary", "list"), repo.quoteApiCalls)
+        assertEquals(listOf("SRN-11380001", "SRN-11380001"), repo.premiumSummarySearches)
+    }
+
+    @Test
+    fun `premium_initiate request sends crn 0 on the first quote and on a re-quote`() = runTest {
+        val repo = repository()
+        val vm = NewCarViewModel(repo)
+        openResults(vm)
+        // The first response returned a CRN; it must not leak into the next request
+        assertEquals("11380001", vm.uiState.value.crnNumber)
+
+        vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6917", "HTK PLUS 1.5 MT (1493CC)")))
+        vm.onAction(NewCarAction.OnConfirmQuotePopup)
+        advanceUntilIdle()
+
+        assertEquals(2, repo.premiumInitiateInputs.size)
+        repo.premiumInitiateInputs.forEach { input ->
+            val request = buildPremiumInitiateRequest(input, ssId = "150253", appVersion = "test", today = LocalDate.of(2026, 11, 27))
+            val json = testJson.encodeToJsonElement(PremiumInitiateRequest.serializer(), request).jsonObject
+            assertEquals(JsonPrimitive(0), json["crn"])
+        }
     }
 
     @Test
@@ -243,6 +322,7 @@ class QuoteVariantRequoteTest {
         val formJob = launch { vm.uiEvent.collect { formEvents.add(it) } }
 
         vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6918", "GTX PLUS 1.5 AT (1493CC)")))
+        vm.onAction(NewCarAction.OnConfirmQuotePopup)
         advanceUntilIdle()
 
         val state = vm.uiState.value
@@ -266,6 +346,7 @@ class QuoteVariantRequoteTest {
         openResults(vm)
 
         vm.onAction(NewCarAction.OnVariantSelected(DropdownOption("6918", "GTX PLUS 1.5 AT (1493CC)")))
+        vm.onAction(NewCarAction.OnConfirmQuotePopup)
         advanceUntilIdle()
         vm.onAction(NewCarAction.OnLeaveQuoteResults)
         advanceUntilIdle()
